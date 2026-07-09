@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth/user";
 import { getDb } from "@/lib/db/client";
 import { getActiveLoops, toLoopDTO } from "@/lib/loops/transitions";
-import { computeLoopLayout, summariseLoops } from "@/lib/loops/layout";
+import { computeLoopLayout, summariseLoops, partitionFieldLoops } from "@/lib/loops/layout";
 
 export async function GET() {
   const user = await getOrCreateUser();
@@ -14,15 +14,32 @@ export async function GET() {
 
   const active = await getActiveLoops(db, user.id);
   const dtos = active.map(toLoopDTO);
-  const positions = computeLoopLayout(
+  const { visible } = partitionFieldLoops(
     dtos.map((l) => ({
       id: l.id,
       state: l.state,
       weight: l.weight,
       emotionalIntensity: l.emotionalIntensity,
+      label: l.label,
+      visualSeed: l.visualSeed,
+    })),
+    false
+  );
+  const visibleIds = new Set(visible.map((v) => v.id));
+  const toLayout = dtos.filter((l) => visibleIds.has(l.id));
+
+  const positions = computeLoopLayout(
+    toLayout.map((l) => ({
+      id: l.id,
+      state: l.state,
+      weight: l.weight,
+      emotionalIntensity: l.emotionalIntensity,
+      label: l.label,
+      visualSeed: l.visualSeed,
     })),
     390,
-    600
+    520,
+    { visibleCount: toLayout.length }
   );
 
   const posMap = new Map(positions.map((p) => [p.id, p]));

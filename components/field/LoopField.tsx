@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { LoopCircle } from "./LoopCircle";
@@ -8,7 +8,7 @@ import { SummaryBar } from "./SummaryBar";
 import { FieldToggle } from "./FieldToggle";
 import { LoopDetailSheet } from "@/components/sheet/LoopDetailSheet";
 import type { LoopDTO } from "@/lib/types/loop";
-import { computeLoopLayout } from "@/lib/loops/layout";
+import { computeLoopLayout, partitionFieldLoops } from "@/lib/loops/layout";
 
 interface LoopFieldProps {
   loops: LoopDTO[];
@@ -30,28 +30,49 @@ export function LoopField({
   dummyMode = false,
 }: LoopFieldProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showParkedCluster, setShowParkedCluster] = useState(false);
+  const [showCollapsedCluster, setShowCollapsedCluster] = useState(false);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const [fieldSize, setFieldSize] = useState({ width: 390, height: 520 });
+
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setFieldSize({
+        width: Math.max(320, Math.round(rect.width)),
+        height: Math.max(400, Math.round(rect.height)),
+      });
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const selected = loops.find((l) => l.id === selectedId) ?? null;
 
-  const { visibleLoops, parkedCount, collapsedParked } = useMemo(() => {
-    const parked = loops.filter((l) => l.state === "parked");
-    const nonParked = loops.filter((l) => l.state !== "parked");
-
-    if (loops.length <= 14 || showParkedCluster) {
-      return {
-        visibleLoops: loops,
-        parkedCount: parked.length,
-        collapsedParked: false,
-      };
-    }
-
+  const { visibleLoops, collapsedLoops, collapsedCount } = useMemo(() => {
+    const { visible, collapsed } = partitionFieldLoops(
+      loops.map((l) => ({
+        id: l.id,
+        state: l.state,
+        weight: l.weight,
+        emotionalIntensity: l.emotionalIntensity,
+        label: l.label,
+        visualSeed: l.visualSeed,
+      })),
+      showCollapsedCluster
+    );
+    const visibleIds = new Set(visible.map((v) => v.id));
     return {
-      visibleLoops: nonParked,
-      parkedCount: parked.length,
-      collapsedParked: parked.length > 0,
+      visibleLoops: loops.filter((l) => visibleIds.has(l.id)),
+      collapsedLoops: loops.filter((l) => collapsed.some((c) => c.id === l.id)),
+      collapsedCount: collapsed.length,
     };
-  }, [loops, showParkedCluster]);
+  }, [loops, showCollapsedCluster]);
 
   const positions = useMemo(() => {
     const layout = computeLoopLayout(
@@ -60,12 +81,15 @@ export function LoopField({
         state: l.state,
         weight: l.weight,
         emotionalIntensity: l.emotionalIntensity,
+        label: l.label,
+        visualSeed: l.visualSeed,
       })),
-      390,
-      520
+      fieldSize.width,
+      fieldSize.height,
+      { visibleCount: visibleLoops.length }
     );
     return new Map(layout.map((p) => [p.id, p]));
-  }, [visibleLoops]);
+  }, [visibleLoops, fieldSize]);
 
   const isEmpty = loops.length === 0;
 
@@ -79,7 +103,10 @@ export function LoopField({
         <FieldToggle view="occupying" />
       </header>
 
-      <div className="relative flex-1 mx-auto w-full max-w-[390px] min-h-[520px]">
+      <div
+        ref={fieldRef}
+        className="relative flex-1 mx-auto w-full max-w-[390px] lg:max-w-[720px] min-h-[520px]"
+      >
         {isEmpty ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <div className="w-20 h-20 rounded-full border-2 border-closed opacity-40 mb-6" />
@@ -99,36 +126,40 @@ export function LoopField({
               const pos = positions.get(loop.id);
               const isClosing = closingLoopId === loop.id;
               const isNew = newLoopIds?.has(loop.id);
+              const centerX = fieldSize.width / 2;
+              const centerY = fieldSize.height / 2;
 
               return (
-                <motion.button
+                <motion.div
                   key={loop.id}
-                  type="button"
-                  initial={
-                    isNew
-                      ? { opacity: 0, scale: 0.3, x: 195, y: 260 }
-                      : { opacity: 1, scale: 1 }
-                  }
-                  animate={{
-                    opacity: isClosing ? 0 : 1,
-                    scale: isClosing ? 0.8 : 1,
-                    x: 0,
-                    y: 0,
-                  }}
-                  exit={{ opacity: 0, scale: 0.5 }}
-                  transition={{
-                    duration: isClosing ? 3 : isNew ? 1.2 : 0.3,
-                    ease: "easeOut",
-                  }}
-                  onClick={() => setSelectedId(loop.id)}
-                  className="absolute focus:outline-none"
+                  className="absolute"
                   style={{
-                    left: pos?.x ?? loop.x ?? 195,
-                    top: pos?.y ?? loop.y ?? 260,
+                    left: pos?.x ?? loop.x ?? centerX,
+                    top: pos?.y ?? loop.y ?? centerY,
                     transform: "translate(-50%, -50%)",
                   }}
-                  aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
+                  exit={{ opacity: 0 }}
                 >
+                  <motion.button
+                    type="button"
+                    initial={
+                      isNew
+                        ? { opacity: 0, scale: 0.3 }
+                        : { opacity: 1, scale: 1 }
+                    }
+                    animate={{
+                      opacity: isClosing ? 0 : 1,
+                      scale: isClosing ? 0.8 : 1,
+                    }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{
+                      duration: isClosing ? 3 : isNew ? 1.2 : 0.3,
+                      ease: "easeOut",
+                    }}
+                    onClick={() => setSelectedId(loop.id)}
+                    className="focus:outline-none"
+                    aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
+                  >
                   <LoopCircle
                     label={loop.label}
                     state={loop.state}
@@ -138,20 +169,42 @@ export function LoopField({
                     animateArc={isClosing ? 1 : undefined}
                     drift={!isClosing}
                     labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
+                    labelPosition={pos?.labelPosition ?? "below"}
+                    visibleCount={visibleLoops.length}
+                    forField
                   />
                 </motion.button>
+                </motion.div>
               );
             })}
           </AnimatePresence>
         )}
 
-        {collapsedParked && !showParkedCluster && (
+        {collapsedCount > 0 && !showCollapsedCluster && (
           <button
             type="button"
-            onClick={() => setShowParkedCluster(true)}
-            className="absolute right-2 bottom-24 font-ui text-xs text-ink-faint bg-sheet border border-border rounded-full px-3 py-2 min-h-[36px]"
+            onClick={() => setShowCollapsedCluster(true)}
+            className="absolute right-3 bottom-24 flex items-center gap-2 bg-sheet border border-border rounded-full px-3 py-2 min-h-[40px] shadow-subtle"
+            aria-label={`${collapsedCount} more loops, tap to expand`}
           >
-            {parkedCount} parked
+            <span className="flex -space-x-1.5" aria-hidden>
+              {collapsedLoops.slice(0, 3).map((l) => (
+                <LoopCircle
+                  key={l.id}
+                  state={l.state}
+                  weight={l.weight}
+                  emotionalIntensity={l.emotionalIntensity}
+                  visualSeed={l.visualSeed}
+                  size={18}
+                  showLabel={false}
+                  forField
+                  visibleCount={visibleLoops.length}
+                />
+              ))}
+            </span>
+            <span className="font-ui text-xs text-ink-faint whitespace-nowrap">
+              {collapsedCount} more
+            </span>
           </button>
         )}
       </div>

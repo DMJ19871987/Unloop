@@ -29,8 +29,8 @@ export function arcCompleteness(
 ): number {
   switch (state) {
     case "open_attention": {
-      const jitter = ((visualSeed % 100) / 100) * 0.3;
-      return 0.15 + jitter + (weight / 5) * 0.1;
+      const jitter = ((visualSeed % 100) / 100) * 0.2;
+      return Math.min(0.45, 0.15 + jitter + (weight / 5) * 0.1);
     }
     case "next_step_known":
       return 0.75;
@@ -61,12 +61,24 @@ export interface LoopVisualStyle {
   size: number;
 }
 
+/** Field diameter: 36px (weight 1) → 110px (weight 5); max −20% when >10 visible. */
+export function fieldLoopDiameter(weight: number, visibleCount: number): number {
+  const clamped = Math.max(1, Math.min(5, weight));
+  const maxD = visibleCount > 10 ? 110 * 0.8 : 110;
+  return 36 + ((clamped - 1) / 4) * (maxD - 36);
+}
+
 export function loopVisualStyle(
   state: LoopState,
   weight: number,
-  emotionalIntensity: number
+  emotionalIntensity: number,
+  options?: { visibleCount?: number; forField?: boolean }
 ): LoopVisualStyle {
-  const baseSize = 46 + weight * 20 + emotionalIntensity * 2;
+  const visibleCount = options?.visibleCount ?? 1;
+  const fieldSize = options?.forField
+    ? fieldLoopDiameter(weight, visibleCount)
+    : undefined;
+  const baseSize = fieldSize ?? 46 + weight * 20 + emotionalIntensity * 2;
 
   switch (state) {
     case "open_attention":
@@ -88,7 +100,9 @@ export function loopVisualStyle(
         stroke: "var(--ink-placeholder)",
         strokeWidth: 2,
         opacity: 0.4,
-        size: Math.max(46, baseSize - 30),
+        size: options?.forField
+          ? Math.max(36, baseSize * 0.72)
+          : Math.max(46, baseSize - 30),
       };
     case "released":
     case "done":

@@ -1,4 +1,4 @@
-import { computeLoopLayout } from "@/lib/loops/layout";
+import { computeLoopLayout, partitionFieldLoops } from "@/lib/loops/layout";
 import { visualSeedFromLabel } from "@/lib/loops/state";
 import type { LoopDTO, ClosureAction, LoopCategory } from "@/lib/types/loop";
 import type { LoopState } from "@/lib/loops/state";
@@ -81,15 +81,32 @@ const RAW_FIELD_LOOPS: LoopDTO[] = [
 ];
 
 function withLayout(loops: LoopDTO[]): LoopDTO[] {
-  const positions = computeLoopLayout(
+  const { visible } = partitionFieldLoops(
     loops.map((l) => ({
       id: l.id,
       state: l.state,
       weight: l.weight,
       emotionalIntensity: l.emotionalIntensity,
+      label: l.label,
+      visualSeed: l.visualSeed,
+    })),
+    true
+  );
+  const visibleIds = new Set(visible.map((v) => v.id));
+  const toLayout = loops.filter((l) => visibleIds.has(l.id));
+
+  const positions = computeLoopLayout(
+    toLayout.map((l) => ({
+      id: l.id,
+      state: l.state,
+      weight: l.weight,
+      emotionalIntensity: l.emotionalIntensity,
+      label: l.label,
+      visualSeed: l.visualSeed,
     })),
     390,
-    600
+    520,
+    { visibleCount: toLayout.length }
   );
   const posMap = new Map(positions.map((p) => [p.id, p]));
   return loops.map((l) => ({

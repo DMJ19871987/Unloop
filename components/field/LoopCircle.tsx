@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { LoopState } from "@/lib/loops/state";
 import { arcCompleteness, loopVisualStyle } from "@/lib/loops/state";
+import { buildLoopArcPath } from "@/lib/loops/arc-path";
 
-const CIRCUMFERENCE = 282.743;
+import type { LabelPosition } from "@/lib/loops/layout-types";
+
+export type { LabelPosition };
 
 export interface LoopCircleProps {
   label?: string;
@@ -25,31 +28,12 @@ export interface LoopCircleProps {
   style?: React.CSSProperties;
   drift?: boolean;
   showLabel?: boolean;
+  labelPosition?: LabelPosition;
+  visibleCount?: number;
+  forField?: boolean;
 }
 
-function seededJitter(seed: number, index: number): number {
-  const x = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453;
-  return (x - Math.floor(x)) * 2 - 1;
-}
-
-function buildWobblyPath(
-  cx: number,
-  cy: number,
-  r: number,
-  seed: number,
-  segments = 64
-): string {
-  const points: string[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2;
-    const jitter = seededJitter(seed, i) * 1.8;
-    const radius = r + jitter;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    points.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`);
-  }
-  return points.join(" ") + " Z";
-}
+const VIEW_R = 45;
 
 export function LoopCircle({
   label,
@@ -69,75 +53,91 @@ export function LoopCircle({
   style,
   drift = false,
   showLabel = true,
+  labelPosition = "below",
+  visibleCount = 1,
+  forField = false,
 }: LoopCircleProps) {
-  const visual = loopVisualStyle(state, weight, emotionalIntensity);
+  const visual = loopVisualStyle(state, weight, emotionalIntensity, {
+    visibleCount,
+    forField,
+  });
   const size = sizeOverride ?? visual.size;
   const arc = arcOverride ?? arcCompleteness(state, weight, visualSeed);
   const stroke = strokeOverride ?? visual.stroke;
   const strokeWidth = strokeWidthOverride ?? visual.strokeWidth;
   const opacity = opacityOverride ?? visual.opacity;
-  const displayArc = animateArc ?? arc;
 
-  const dashArray = useMemo(() => {
-    const dashLen = Math.max(0, Math.min(1, displayArc)) * CIRCUMFERENCE;
-    return `${dashLen.toFixed(1)} ${CIRCUMFERENCE.toFixed(1)}`;
-  }, [displayArc]);
+  const [displayArc, setDisplayArc] = useState(arc);
+
+  useEffect(() => {
+    if (animateArc === undefined) {
+      setDisplayArc(arc);
+      return;
+    }
+    const start = arc;
+    const end = animateArc;
+    const t0 = performance.now();
+    const duration = 900;
+    let frame: number;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      setDisplayArc(start + (end - start) * eased);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [animateArc, arc]);
 
   const path = useMemo(
-    () => buildWobblyPath(50, 50, 45, visualSeed),
-    [visualSeed]
+    () => buildLoopArcPath(50, 50, VIEW_R, displayArc, visualSeed),
+    [displayArc, visualSeed]
   );
+
+  const labelNode =
+    showLabel && label ? (
+      <span
+        className={`font-ui text-[13px] font-medium text-center whitespace-nowrap ${
+          labelPosition === "right" ? "ml-2 self-center" : ""
+        }`}
+        style={{
+          color: labelColor ?? "var(--ink-soft)",
+          opacity: labelOpacity,
+        }}
+      >
+        {label}
+      </span>
+    ) : null;
 
   const content = (
     <div
-      className={`flex flex-col items-center gap-1 ${className}`}
-      style={{ width: size, ...style }}
+      className={`flex ${
+        labelPosition === "right"
+          ? "flex-row items-center"
+          : labelPosition === "above"
+            ? "flex-col-reverse items-center"
+            : "flex-col items-center"
+      } gap-1 ${className}`}
+      style={{ width: labelPosition === "right" ? undefined : size, ...style }}
     >
       <svg
         width={size}
         height={size}
         viewBox="0 0 100 100"
-        className="block overflow-visible"
+        className="block shrink-0 overflow-visible"
         aria-hidden={!label}
       >
-        <defs>
-          <filter id={`wobble-${visualSeed}`} x="-25%" y="-25%" width="150%" height="150%">
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.018"
-              numOctaves={2}
-              seed={visualSeed % 100}
-              result="noise"
-            />
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" />
-          </filter>
-        </defs>
-        <g transform="rotate(-90 50 50)" filter={`url(#wobble-${visualSeed})`}>
-          <path
-            d={path}
-            fill="none"
-            stroke={stroke}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeDasharray={dashArray}
-            opacity={opacity}
-            style={{
-              transition: animateArc !== undefined ? "stroke-dasharray 900ms ease-out" : undefined,
-            }}
-          />
-        </g>
+        <path
+          d={path}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={opacity}
+        />
       </svg>
-      {showLabel && label && (
-        <span
-          className="font-ui text-[13px] font-medium text-center whitespace-nowrap"
-          style={{
-            color: labelColor ?? "var(--ink-soft)",
-            opacity: labelOpacity,
-          }}
-        >
-          {label}
-        </span>
-      )}
+      {labelNode}
     </div>
   );
 

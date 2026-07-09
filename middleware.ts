@@ -27,6 +27,7 @@ function buildClerkMiddleware() {
   "/api/cron/resurface",
   "/api/cron/checkin",
   "/api/icon",
+  "/dev(.*)",
 ]);
 
   return clerkMiddleware(async (auth: { protect: () => Promise<void> }, request: NextRequest) => {

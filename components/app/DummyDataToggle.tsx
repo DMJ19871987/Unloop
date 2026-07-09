@@ -8,8 +8,8 @@ export function DummyDataToggle() {
   if (!available) return null;
 
   return (
-    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-      <span className="font-ui text-xs text-ink-faint whitespace-nowrap">Dummy data</span>
+    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+      <span className="font-ui text-xs text-ink whitespace-nowrap">Dev mode</span>
       <button
         type="button"
         role="switch"

@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #faf7f2;
+  --ink: #2e2a26;
+  --ink-soft: #4a4038;
+  --ink-muted: #7c6f62;
+  --ink-faint: #9a8e80;
+  --ink-placeholder: #a99c8e;
+  --accent: #c1633f;
+  --accent-hover: #8a3e22;
+  --accent-selected: #b15a38;
+  --accent-soft: #e8c4b0;
+  --accent-tint: #f2e1d8;
+  --accent-breathe: #f1e1d8;
+  --accent-button: #ead3c6;
+  --closed: #6e635a;
+  --sheet: #fcfaf6;
+  --border: #e3d9cd;
+  --border-soft: #eadfd2;
+  --font-heading: "Spectral", Georgia, serif;
+  --font-ui: "Hanken Grotesk", system-ui, sans-serif;
+}
+
+.dark {
+  --paper: #1c1917;
+  --ink: #ede7df;
+  --ink-soft: #c9bfb3;
+  --ink-muted: #a99c8e;
+  --ink-faint: #8a8378;
+  --ink-placeholder: #6e675f;
+  --accent: #a85a3d;
+  --accent-hover: #c4633e;
+  --accent-selected: #b86a4a;
+  --accent-soft: #4a352c;
+  --accent-tint: #3d2a24;
+  --accent-breathe: #2a211c;
+  --accent-button: #352820;
+  --closed: #8a8378;
+  --sheet: #252220;
+  --border: #3d3834;
+  --border-soft: #332e2a;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-paper text-ink font-ui;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

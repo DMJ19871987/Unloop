@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:{{ sizePx }}">
+  <svg width="{{ svgSize }}" height="{{ svgSize }}" viewBox="0 0 100 100" style="display:block; overflow:visible">
+    <g transform="rotate(-90 50 50)">
+      <circle cx="50" cy="50" r="45" fill="none" stroke="{{ stroke }}" stroke-width="{{ sw }}" stroke-linecap="round" stroke-dasharray="{{ dash }}" opacity="{{ op }}" filter="url(#wobble)"></circle>
+    </g>
+  </svg>
+  <sc-if value="{{ hasLabel }}" hint-placeholder-val="{{ true }}">
+    <div style="font-family:'Hanken Grotesk',system-ui,sans-serif; font-size:13px; font-weight:500; letter-spacing:0.1px; color:{{ labelColor }}; opacity:{{ labelOp }}; text-align:center; white-space:nowrap">{{ label }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:180,&quot;height&quot;:200},&quot;size&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:140},&quot;arc&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:0.55},&quot;stroke&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#C1633F&quot;},&quot;sw&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:4},&quot;op&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Job application&quot;},&quot;labelColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4A4038&quot;},&quot;labelOp&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:0.85}}">
+class Component extends DCLogic {
+  renderVals() {
+    const size = Number(this.props.size ?? 100);
+    const arc = Number(this.props.arc ?? 0.5);
+    const circ = 282.743;
+    const dashLen = Math.max(0, Math.min(1, arc)) * circ;
+    const label = this.props.label ?? '';
+    return {
+      sizePx: size + 'px',
+      svgSize: size,
+      stroke: this.props.stroke ?? '#C1633F',
+      sw: this.props.sw ?? 3.5,
+      op: this.props.op ?? 1,
+      dash: dashLen.toFixed(1) + ' ' + circ.toFixed(1),
+      label,
+      hasLabel: label !== '',
+      labelColor: this.props.labelColor ?? '#4A4038',
+      labelOp: this.props.labelOp ?? 0.85,
+    };
+  }
+}
+</script>
+</body>
+</html>

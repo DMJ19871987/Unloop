@@ -39,6 +39,14 @@ export function Hero() {
               </>
             )}
           </div>
+          {!prelaunch && (
+            <p className="font-ui text-sm text-ink-faint pt-1">
+              Already using Unloop?{" "}
+              <Link href="/sign-in" className="text-accent-selected hover:text-accent-hover">
+                Sign in
+              </Link>
+            </p>
+          )}
         </div>
         <HeroFieldDemo />
       </div>
@@ -169,6 +177,9 @@ export function Footer() {
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
         <span className="font-heading text-lg text-ink">Unloop</span>
         <nav className="flex gap-6 font-ui text-sm text-ink-faint">
+          <Link href="/sign-in" className="hover:text-accent-selected transition-colors">
+            Sign in
+          </Link>
           <Link href="/privacy" className="hover:text-accent-selected transition-colors">
             Privacy
           </Link>

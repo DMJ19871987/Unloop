@@ -7,9 +7,10 @@ import type { LoopDTO } from "@/lib/types/loop";
 interface ResurfaceFlowProps {
   loops: LoopDTO[];
   onComplete: () => void;
+  dummyMode?: boolean;
 }
 
-export function ResurfaceFlow({ loops, onComplete }: ResurfaceFlowProps) {
+export function ResurfaceFlow({ loops, onComplete, dummyMode = false }: ResurfaceFlowProps) {
   const [index, setIndex] = useState(0);
   const current = loops[index] ?? null;
 
@@ -41,6 +42,7 @@ export function ResurfaceFlow({ loops, onComplete }: ResurfaceFlowProps) {
       onClose={onComplete}
       onUpdate={handleUpdate}
       onRemove={handleRemove}
+      dummyMode={dummyMode}
     />
   );
 }

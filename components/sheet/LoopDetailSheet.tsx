@@ -9,6 +9,8 @@ import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { platform } from "@/lib/platform";
 import type { LoopDTO, ClosureAction } from "@/lib/types/loop";
 
+import { applyDummyLoopAction } from "@/lib/dev/dummy-data";
+
 interface LoopDetailSheetProps {
   loop: LoopDTO | null;
   open: boolean;
@@ -17,6 +19,7 @@ interface LoopDetailSheetProps {
   onRemove: (id: string) => void;
   onClosing?: (id: string) => void;
   allLoops?: LoopDTO[];
+  dummyMode?: boolean;
 }
 
 export function LoopDetailSheet({
@@ -27,6 +30,7 @@ export function LoopDetailSheet({
   onRemove,
   onClosing,
   allLoops = [],
+  dummyMode = false,
 }: LoopDetailSheetProps) {
   const [selectedAction, setSelectedAction] = useState<ClosureAction | null>(null);
   const [confirmText, setConfirmText] = useState<string | null>(null);
@@ -60,6 +64,31 @@ export function LoopDetailSheet({
 
     setLoading(true);
     try {
+      if (dummyMode) {
+        const updated = applyDummyLoopAction(loop, action, extras);
+        if (action === "done" || action === "released") {
+          platform.vibrate(10);
+          onClosing?.(loopId);
+          setTimeout(() => onUpdate(updated), 900);
+          setTimeout(() => onRemove(loopId), 3900);
+          onClose();
+          return;
+        }
+        if (action === "next_step_known") {
+          setConfirmText("Contained.");
+          setTimeout(() => {
+            onUpdate(updated);
+            onClose();
+            setConfirmText(null);
+            setSelectedAction(null);
+          }, 1200);
+          return;
+        }
+        onUpdate(updated);
+        onClose();
+        return;
+      }
+
       const res = await fetch(`/api/loops/${loopId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -98,6 +127,12 @@ export function LoopDetailSheet({
   };
 
   async function saveLabel() {
+    if (dummyMode) {
+      onUpdate({ ...loop!, label: editLabel.trim(), updatedAt: new Date().toISOString() });
+      setMode("default");
+      onClose();
+      return;
+    }
     const res = await fetch(`/api/loops/${loopId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -112,6 +147,11 @@ export function LoopDetailSheet({
   }
 
   async function mergeInto(targetId: string) {
+    if (dummyMode) {
+      onRemove(loopId);
+      onClose();
+      return;
+    }
     const res = await fetch(`/api/loops/${loopId}/merge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -230,6 +270,11 @@ export function LoopDetailSheet({
                     <button
                       type="button"
                       onClick={async () => {
+                        if (dummyMode) {
+                          onRemove(loopId);
+                          onClose();
+                          return;
+                        }
                         await fetch(`/api/loops/${loopId}`, { method: "DELETE" });
                         onRemove(loopId);
                       }}

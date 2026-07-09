@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RecordView } from "@/components/record/RecordView";
+import { useDummyData } from "@/components/providers/DummyDataProvider";
+import {
+  getDummyClosedLoops,
+  getDummyRecordCounter,
+  getDummyWeeklySummaries,
+} from "@/lib/dev/dummy-data";
 import type { LoopDTO } from "@/lib/types/loop";
 
 interface WeeklySummaryDTO {
@@ -19,6 +25,7 @@ interface ClosedLoopDTO extends LoopDTO {
 
 export default function RecordPage() {
   const router = useRouter();
+  const { enabled: dummyData } = useDummyData();
   const [closedLoops, setClosedLoops] = useState<ClosedLoopDTO[]>([]);
   const [counter, setCounter] = useState("");
   const [weeklySummaries, setWeeklySummaries] = useState<WeeklySummaryDTO[]>([]);
@@ -34,10 +41,23 @@ export default function RecordPage() {
   }, []);
 
   useEffect(() => {
+    if (dummyData) {
+      setClosedLoops(getDummyClosedLoops());
+      setCounter(getDummyRecordCounter());
+      setWeeklySummaries(getDummyWeeklySummaries());
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     fetchRecord();
-  }, [fetchRecord]);
+  }, [dummyData, fetchRecord]);
 
   const handleReopen = async (id: string) => {
+    if (dummyData) {
+      setClosedLoops((prev) => prev.filter((l) => l.id !== id));
+      router.push("/field");
+      return;
+    }
     const res = await fetch(`/api/loops/${id}/reopen`, { method: "POST" });
     if (res.ok) {
       setClosedLoops((prev) => prev.filter((l) => l.id !== id));

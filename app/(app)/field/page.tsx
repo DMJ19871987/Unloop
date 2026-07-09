@@ -11,6 +11,12 @@ import { ResurfaceFlow } from "@/components/field/ResurfaceFlow";
 import { ReleasePassBanner } from "@/components/field/ReleasePassBanner";
 import { InstallPrompt } from "@/components/app/InstallPrompt";
 import { CheckinOnboarding } from "@/components/app/CheckinOnboarding";
+import { useDummyData } from "@/components/providers/DummyDataProvider";
+import {
+  getDummyFieldLoops,
+  getDummyResurfaceLoops,
+} from "@/lib/dev/dummy-data";
+
 import type { LoopDTO } from "@/lib/types/loop";
 
 function releasePassDismissKey() {
@@ -21,6 +27,7 @@ function releasePassDismissKey() {
 function FieldContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { enabled: dummyData } = useDummyData();
   const [loops, setLoops] = useState<LoopDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
@@ -55,20 +62,30 @@ function FieldContent() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.sessionsCompleted !== undefined) {
-          setUserMeta({
-            sessionsCompleted: data.sessionsCompleted ?? 0,
-            onboardingComplete: data.onboardingComplete ?? false,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (dummyData) {
+      const dummyLoops = getDummyFieldLoops();
+      const dummyResurface = getDummyResurfaceLoops();
+      setLoops(dummyLoops);
+      setResurfaceLoops(dummyResurface);
+      setShowResurfaceBanner(dummyResurface.length > 0);
+      setShowCrisisCard(false);
+      setShowInstallPrompt(false);
+      setShowCheckinOnboarding(false);
+      setShowSummary(false);
+      setLoading(false);
 
-  useEffect(() => {
+      const openCount = dummyLoops.filter(
+        (l) => l.state === "open_attention" || l.state === "next_step_known"
+      ).length;
+      if (openCount >= 25 && !localStorage.getItem(releasePassDismissKey())) {
+        setShowReleasePass(true);
+      } else {
+        setShowReleasePass(false);
+      }
+      return;
+    }
+
+    setLoading(true);
     fetchLoops().then((data) => {
       const session = searchParams.get("session");
       const newCount = parseInt(searchParams.get("new") ?? "0", 10);
@@ -102,26 +119,43 @@ function FieldContent() {
         router.replace("/field", { scroll: false });
       }
     });
-  }, [fetchLoops, searchParams, router]);
+  }, [dummyData, fetchLoops, searchParams, router]);
 
   useEffect(() => {
-    if (!userMeta) return;
+    if (dummyData) return;
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.sessionsCompleted !== undefined) {
+          setUserMeta({
+            sessionsCompleted: data.sessionsCompleted ?? 0,
+            onboardingComplete: data.onboardingComplete ?? false,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [dummyData]);
+
+  useEffect(() => {
+    if (dummyData || !userMeta) return;
     if (userMeta.sessionsCompleted >= 1 && !userMeta.onboardingComplete && showSummary) {
       const t = setTimeout(() => setShowCheckinOnboarding(true), 2500);
       return () => clearTimeout(t);
     }
-  }, [userMeta, showSummary]);
+  }, [userMeta, showSummary, dummyData]);
 
   useEffect(() => {
+    if (dummyData) return;
     const openCount = loops.filter(
       (l) => l.state === "open_attention" || l.state === "next_step_known"
     ).length;
     if (openCount >= 25 && !localStorage.getItem(releasePassDismissKey())) {
       setShowReleasePass(true);
     }
-  }, [loops]);
+  }, [loops, dummyData]);
 
   useEffect(() => {
+    if (dummyData) return;
     fetch("/api/resurface")
       .then((r) => r.json())
       .then((data) => {
@@ -130,11 +164,11 @@ function FieldContent() {
           setShowResurfaceBanner(true);
         }
       });
-  }, []);
+  }, [dummyData]);
 
   const dismissResurface = async () => {
     setShowResurfaceBanner(false);
-    await fetch("/api/resurface", { method: "POST" });
+    if (!dummyData) await fetch("/api/resurface", { method: "POST" });
   };
 
   const handleLoopUpdate = (updated: LoopDTO) => {
@@ -197,6 +231,7 @@ function FieldContent() {
         onClosing={handleClosing}
         newLoopIds={newLoopIds}
         closingLoopId={closingLoopId}
+        dummyMode={dummyData}
       />
 
       <AnimatePresence>
@@ -211,10 +246,11 @@ function FieldContent() {
       {resurfaceActive && resurfaceLoops.length > 0 && (
         <ResurfaceFlow
           loops={resurfaceLoops}
+          dummyMode={dummyData}
           onComplete={async () => {
             setResurfaceActive(false);
-            await fetch("/api/resurface", { method: "POST" });
-            fetchLoops();
+            if (!dummyData) await fetch("/api/resurface", { method: "POST" });
+            if (!dummyData) fetchLoops();
           }}
         />
       )}

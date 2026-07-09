@@ -17,6 +17,7 @@ interface LoopFieldProps {
   onClosing?: (id: string) => void;
   newLoopIds?: Set<string>;
   closingLoopId?: string | null;
+  dummyMode?: boolean;
 }
 
 export function LoopField({
@@ -26,6 +27,7 @@ export function LoopField({
   onClosing,
   newLoopIds,
   closingLoopId,
+  dummyMode = false,
 }: LoopFieldProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showParkedCluster, setShowParkedCluster] = useState(false);
@@ -183,6 +185,7 @@ export function LoopField({
           setSelectedId(null);
         }}
         allLoops={loops}
+        dummyMode={dummyMode}
       />
     </div>
   );

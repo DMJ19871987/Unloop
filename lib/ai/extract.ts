@@ -1,39 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { EXTRACTION_SYSTEM_PROMPT, isMockAiEnabled, MOCK_EXTRACTION_RESPONSE } from "./prompts";
+import { EXTRACTION_SYSTEM_PROMPT, isMockAiEnabled } from "./prompts";
 import { logAiUsage } from "./log";
+import { mockExtractLoops } from "./mock-extract";
+import type { ExistingLoopContext, ExtractionModelOutput } from "./extraction-types";
 
-export interface ExistingLoopInput {
-  id: string;
-  label: string;
-  state: string;
-  weight: number;
-}
-
-export interface ExtractedNewLoop {
-  label: string;
-  weight: number;
-  emotional_intensity: number;
-  category: string;
-  next_step: string | null;
-}
-
-export interface ExtractedMatchedLoop {
-  loop_id: string;
-  weight_delta: 0 | 1;
-  next_step: string | null;
-}
-
-export interface ExtractionResponse {
-  new_loops: ExtractedNewLoop[];
-  matched_loops: ExtractedMatchedLoop[];
-  flag: "crisis" | null;
-}
+export type { ExistingLoopContext, ExtractionModelOutput };
 
 export async function extractLoops(
   transcript: string,
-  existingLoops: ExistingLoopInput[],
+  existingLoops: ExistingLoopContext[],
   userId: string | null
-): Promise<ExtractionResponse> {
+): Promise<ExtractionModelOutput> {
   if (isMockAiEnabled()) {
     await logAiUsage({
       userId,
@@ -43,14 +20,14 @@ export async function extractLoops(
       outputTokens: 200,
       estCostUsd: 0,
     });
-    return MOCK_EXTRACTION_RESPONSE;
+    return mockExtractLoops(transcript, existingLoops);
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const userMessage = `TRANSCRIPT:\n${transcript}\n\nEXISTING_LOOPS:\n${JSON.stringify(existingLoops, null, 2)}`;
 
-  async function callClaude(retry = false): Promise<ExtractionResponse> {
+  async function callClaude(retry = false): Promise<ExtractionModelOutput> {
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2000,
@@ -76,12 +53,18 @@ export async function extractLoops(
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
       estCostUsd:
-        (response.usage.input_tokens * 0.000003 +
-          response.usage.output_tokens * 0.000015),
+        response.usage.input_tokens * 0.000003 +
+        response.usage.output_tokens * 0.000015,
     });
 
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
-    return JSON.parse(cleaned) as ExtractionResponse;
+    const parsed = JSON.parse(cleaned) as ExtractionModelOutput;
+    return {
+      new_loops: parsed.new_loops ?? [],
+      matched_loops: parsed.matched_loops ?? [],
+      merge_suggestions: parsed.merge_suggestions ?? [],
+      flag: parsed.flag ?? null,
+    };
   }
 
   try {

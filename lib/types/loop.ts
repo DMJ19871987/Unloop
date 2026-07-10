@@ -29,8 +29,22 @@ export interface LoopDTO {
   y?: number;
 }
 
-export interface ExtractionResult {
+import type { ExtractionProposal } from "@/lib/ai/extraction-types";
+import type { CrisisResources } from "@/lib/safety/crisis-resources";
+
+export interface CrisisExtractResult {
+  crisis: true;
   sessionId: string;
+  resources: CrisisResources;
+  rateLimitWarning?: string;
+}
+
+export interface NormalExtractResult {
+  crisis?: false;
+  sessionId: string;
+  created: LoopDTO[];
+  updated: LoopDTO[];
+  proposals: ExtractionProposal[];
   newLoops: LoopDTO[];
   matchedLoops: { id: string; label: string }[];
   loops: LoopDTO[];
@@ -42,8 +56,11 @@ export interface ExtractionResult {
     nextStepKnown: number;
     parked: number;
   };
-  flag: "crisis" | null;
+  rateLimitWarning?: string;
+  summary?: string;
 }
+
+export type ExtractApiResult = CrisisExtractResult | NormalExtractResult;
 
 export type ClosureAction =
   | "done"

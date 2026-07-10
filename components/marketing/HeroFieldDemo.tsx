@@ -1,20 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { LoopCircle } from "@/components/field/LoopCircle";
+import { computeLoopLayout } from "@/lib/loops/layout";
 
 const DEMO_TRANSCRIPT =
   "I keep thinking about the job application and whether I should message Tom about Saturday. The garden needs sorting. I need to call the bank about that charge. Mum's birthday is coming up and I haven't planned anything.";
 
 const DEMO_LOOPS = [
-  { label: "Job application", state: "open_attention" as const, weight: 5, emotionalIntensity: 4, x: 38, y: 52, visualSeed: 101 },
-  { label: "Message Tom", state: "open_attention" as const, weight: 4, emotionalIntensity: 3, x: 62, y: 28, visualSeed: 202 },
-  { label: "The garden", state: "open_attention" as const, weight: 3, emotionalIntensity: 2, x: 22, y: 35, visualSeed: 303 },
-  { label: "Call the bank", state: "next_step_known" as const, weight: 3, emotionalIntensity: 2, x: 72, y: 58, visualSeed: 404 },
-  { label: "Mum's birthday", state: "open_attention" as const, weight: 4, emotionalIntensity: 3, x: 48, y: 72, visualSeed: 505 },
-  { label: "Reply to Sam", state: "parked" as const, weight: 2, emotionalIntensity: 1, x: 85, y: 22, visualSeed: 606 },
+  {
+    id: "demo-job",
+    label: "Job application",
+    state: "open_attention" as const,
+    weight: 5,
+    emotionalIntensity: 4,
+    visualSeed: 101,
+  },
+  {
+    id: "demo-tom",
+    label: "Message Tom",
+    state: "open_attention" as const,
+    weight: 4,
+    emotionalIntensity: 3,
+    visualSeed: 202,
+  },
+  {
+    id: "demo-garden",
+    label: "The garden",
+    state: "open_attention" as const,
+    weight: 3,
+    emotionalIntensity: 2,
+    visualSeed: 303,
+  },
+  {
+    id: "demo-bank",
+    label: "Call the bank",
+    state: "next_step_known" as const,
+    weight: 3,
+    emotionalIntensity: 2,
+    visualSeed: 404,
+  },
+  {
+    id: "demo-mum",
+    label: "Mum's birthday",
+    state: "open_attention" as const,
+    weight: 4,
+    emotionalIntensity: 3,
+    visualSeed: 505,
+  },
+  {
+    id: "demo-sam",
+    label: "Reply to Sam",
+    state: "parked" as const,
+    weight: 2,
+    emotionalIntensity: 1,
+    visualSeed: 606,
+  },
 ];
+
+const CLOSING_LOOP_ID = "demo-sam";
 
 type Phase = "transcript" | "dissolve" | "field" | "close" | "drift";
 
@@ -22,7 +67,43 @@ export function HeroFieldDemo() {
   const reducedMotion = useReducedMotion();
   const [phase, setPhase] = useState<Phase>("transcript");
   const [transcriptIndex, setTranscriptIndex] = useState(0);
-  const [closingId, setClosingId] = useState<number | null>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const [fieldSize, setFieldSize] = useState({ width: 320, height: 400 });
+
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setFieldSize({
+        width: Math.max(280, Math.round(rect.width)),
+        height: Math.max(340, Math.round(rect.height)),
+      });
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const positions = useMemo(() => {
+    const layout = computeLoopLayout(
+      DEMO_LOOPS.map((loop) => ({
+        id: loop.id,
+        state: loop.state,
+        weight: loop.weight,
+        emotionalIntensity: loop.emotionalIntensity,
+        label: loop.label,
+        visualSeed: loop.visualSeed,
+      })),
+      fieldSize.width,
+      fieldSize.height - 28,
+      { visibleCount: DEMO_LOOPS.length }
+    );
+    return new Map(layout.map((p) => [p.id, p]));
+  }, [fieldSize]);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -33,7 +114,6 @@ export function HeroFieldDemo() {
     const cycle = () => {
       setPhase("transcript");
       setTranscriptIndex(0);
-      setClosingId(null);
     };
 
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -48,10 +128,7 @@ export function HeroFieldDemo() {
     } else if (phase === "dissolve") {
       timers.push(setTimeout(() => setPhase("field"), 1200));
     } else if (phase === "field") {
-      timers.push(setTimeout(() => {
-        setClosingId(606);
-        setPhase("close");
-      }, 2500));
+      timers.push(setTimeout(() => setPhase("close"), 2500));
     } else if (phase === "close") {
       timers.push(setTimeout(() => setPhase("drift"), 2000));
     } else if (phase === "drift") {
@@ -66,7 +143,7 @@ export function HeroFieldDemo() {
 
   return (
     <div className="relative w-full aspect-[4/5] max-w-md mx-auto bg-paper rounded-2xl overflow-hidden border border-border shadow-subtle">
-      <div className="absolute inset-0 p-6">
+      <div className="absolute inset-0 p-6 flex flex-col">
         <AnimatePresence mode="wait">
           {showTranscript && (
             <motion.div
@@ -91,20 +168,25 @@ export function HeroFieldDemo() {
 
         {showLoops && (
           <motion.div
+            ref={fieldRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1.2 }}
-            className="relative w-full h-full"
+            className="relative flex-1 w-full min-h-0"
           >
             {DEMO_LOOPS.map((loop, i) => {
-              const isClosing = closingId === loop.visualSeed;
+              const pos = positions.get(loop.id);
+              const isClosing = CLOSING_LOOP_ID === loop.id;
+              const centerX = fieldSize.width / 2;
+              const centerY = (fieldSize.height - 28) / 2;
+
               return (
                 <motion.div
-                  key={loop.visualSeed}
+                  key={loop.id}
                   className="absolute"
                   style={{
-                    left: `${loop.x}%`,
-                    top: `${loop.y}%`,
+                    left: pos?.x ?? centerX,
+                    top: pos?.y ?? centerY,
                     transform: "translate(-50%, -50%)",
                   }}
                   initial={{ opacity: 0, scale: 0.3 }}
@@ -127,6 +209,10 @@ export function HeroFieldDemo() {
                     animateArc={isClosing && phase === "close" ? 1 : undefined}
                     drift={phase === "drift" || reducedMotion === true}
                     showLabel
+                    labelPosition={pos?.labelPosition ?? "below"}
+                    labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
+                    visibleCount={DEMO_LOOPS.length}
+                    forField
                   />
                 </motion.div>
               );
@@ -135,7 +221,7 @@ export function HeroFieldDemo() {
         )}
       </div>
 
-      <div className="absolute bottom-4 left-0 right-0 text-center">
+      <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
         <span className="font-ui text-xs text-ink-faint tracking-wide">
           {phase === "transcript" && "Listening…"}
           {phase === "dissolve" && "Finding your loops…"}

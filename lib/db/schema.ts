@@ -53,6 +53,7 @@ export const offloadSessions = pgTable(
     durationSeconds: integer("duration_seconds"),
     loopsExtracted: integer("loops_extracted").default(0),
     loopsMatched: integer("loops_matched").default(0),
+    crisis: boolean("crisis").default(false),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (t) => [index("sessions_user_idx").on(t.userId, t.createdAt)]

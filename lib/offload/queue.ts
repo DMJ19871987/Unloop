@@ -1,6 +1,8 @@
 "use client";
 
 import { platform } from "@/lib/platform";
+import type { CrisisResources } from "@/lib/safety/crisis-resources";
+import type { ExtractionProposal } from "@/lib/ai/extraction-types";
 
 export interface QueuedOffload {
   id: string;
@@ -53,9 +55,17 @@ export function base64ToBlob(base64: string, mimeType: string): Blob {
   return new Blob([bytes], { type: mimeType });
 }
 
+export interface ExtractQueueResult {
+  crisis?: boolean;
+  sessionId?: string;
+  resources?: CrisisResources;
+  stats?: ExtractionStats;
+  proposals?: ExtractionProposal[];
+}
+
 export async function processQueue(
   onProgress?: (message: string) => void
-): Promise<{ sessionId?: string; stats?: ExtractionStats } | null> {
+): Promise<ExtractQueueResult | null> {
   if (!platform.isOnline()) return null;
 
   const queue = await getQueue();
@@ -93,7 +103,7 @@ export async function processQueue(
     });
 
     if (!extractRes.ok) throw new Error("Extract failed");
-    const result = await extractRes.json();
+    const result = (await extractRes.json()) as ExtractQueueResult;
     await removeFromQueue(item.id);
     return result;
   } catch {

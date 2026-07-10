@@ -9,6 +9,7 @@ import {
   enqueueOffload,
   processQueue,
 } from "@/lib/offload/queue";
+import { mergePendingProposals } from "@/lib/offload/proposal-storage";
 import { RecordButton } from "./RecordButton";
 import { Waveform } from "./Waveform";
 
@@ -59,9 +60,18 @@ export function CaptureScreen() {
         return;
       }
 
-      if (data.stats.total === 0 && data.stats.new === 0) {
+      if (data.crisis) {
+        router.push("/field?crisis=support");
+        return;
+      }
+
+      if (data.stats?.total === 0 && data.stats?.new === 0) {
         router.push("/field?clear=1");
         return;
+      }
+
+      if (data.proposals?.length) {
+        mergePendingProposals(data.proposals);
       }
 
       const params = new URLSearchParams({
@@ -69,7 +79,6 @@ export function CaptureScreen() {
         new: String(data.stats.new),
         matched: String(data.stats.matched),
       });
-      if (data.showCrisisCard) params.set("crisis", "1");
       router.push(`/field?${params.toString()}`);
     },
     [router]
@@ -165,7 +174,14 @@ export function CaptureScreen() {
     const tryQueue = async () => {
       if (platform.isOnline()) {
         const result = await processQueue();
+        if (result?.crisis) {
+          router.push("/field?crisis=support");
+          return;
+        }
         if (result?.sessionId) {
+          if (result.proposals?.length) {
+            mergePendingProposals(result.proposals);
+          }
           router.push(`/field?session=${result.sessionId}&queued=1`);
         }
       }

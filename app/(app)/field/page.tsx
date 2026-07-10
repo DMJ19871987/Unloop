@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { LoopField } from "@/components/field/LoopField";
 import { SessionSummary } from "@/components/sheet/SessionSummary";
-import { CrisisCard } from "@/components/sheet/CrisisCard";
+import { CrisisSupport } from "@/components/safety/CrisisSupport";
 import { ResurfaceBanner } from "@/components/field/ResurfaceBanner";
 import { ResurfaceFlow } from "@/components/field/ResurfaceFlow";
 import { ReleasePassBanner } from "@/components/field/ReleasePassBanner";
@@ -16,8 +16,15 @@ import {
   getDummyFieldLoops,
   getDummyResurfaceLoops,
 } from "@/lib/dev/dummy-data";
+import {
+  loadPendingProposals,
+  migrateSessionProposals,
+  removePendingProposal,
+} from "@/lib/offload/proposal-storage";
 
 import type { LoopDTO } from "@/lib/types/loop";
+import type { ExtractionProposal } from "@/lib/ai/extraction-types";
+import { ProposalCards } from "@/components/field/ProposalCards";
 
 function releasePassDismissKey() {
   const now = new Date();
@@ -28,8 +35,9 @@ function FieldContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { enabled: dummyData } = useDummyData();
+  const crisisSupport = searchParams.get("crisis") === "support";
   const [loops, setLoops] = useState<LoopDTO[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!crisisSupport);
   const [showSummary, setShowSummary] = useState(false);
   const [summaryStats, setSummaryStats] = useState<{
     new: number;
@@ -44,10 +52,10 @@ function FieldContent() {
   const [resurfaceLoops, setResurfaceLoops] = useState<LoopDTO[]>([]);
   const [showResurfaceBanner, setShowResurfaceBanner] = useState(false);
   const [resurfaceActive, setResurfaceActive] = useState(false);
-  const [showCrisisCard, setShowCrisisCard] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showCheckinOnboarding, setShowCheckinOnboarding] = useState(false);
   const [showReleasePass, setShowReleasePass] = useState(false);
+  const [proposals, setProposals] = useState<ExtractionProposal[]>([]);
   const [userMeta, setUserMeta] = useState<{
     sessionsCompleted: number;
     onboardingComplete: boolean;
@@ -62,13 +70,14 @@ function FieldContent() {
   }, []);
 
   useEffect(() => {
+    if (crisisSupport) return;
+
     if (dummyData) {
       const dummyLoops = getDummyFieldLoops();
       const dummyResurface = getDummyResurfaceLoops();
       setLoops(dummyLoops);
       setResurfaceLoops(dummyResurface);
       setShowResurfaceBanner(dummyResurface.length > 0);
-      setShowCrisisCard(false);
       setShowInstallPrompt(false);
       setShowCheckinOnboarding(false);
       setShowSummary(false);
@@ -85,12 +94,16 @@ function FieldContent() {
       return;
     }
 
+    const session = searchParams.get("session");
+    if (session) {
+      migrateSessionProposals(session);
+    }
+    setProposals(loadPendingProposals());
+
     setLoading(true);
     fetchLoops().then((data) => {
-      const session = searchParams.get("session");
       const newCount = parseInt(searchParams.get("new") ?? "0", 10);
       const matchedCount = parseInt(searchParams.get("matched") ?? "0", 10);
-      const crisis = searchParams.get("crisis") === "1";
 
       if (session && (newCount > 0 || matchedCount > 0)) {
         const newIds = new Set(
@@ -108,10 +121,7 @@ function FieldContent() {
           total: data.loops.length,
         });
         setShowSummary(true);
-
-        if (crisis) setShowCrisisCard(true);
         setShowInstallPrompt(true);
-
         router.replace("/field", { scroll: false });
       }
 
@@ -119,10 +129,10 @@ function FieldContent() {
         router.replace("/field", { scroll: false });
       }
     });
-  }, [dummyData, fetchLoops, searchParams, router]);
+  }, [dummyData, fetchLoops, searchParams, router, crisisSupport]);
 
   useEffect(() => {
-    if (dummyData) return;
+    if (dummyData || crisisSupport) return;
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
@@ -134,28 +144,28 @@ function FieldContent() {
         }
       })
       .catch(() => {});
-  }, [dummyData]);
+  }, [dummyData, crisisSupport]);
 
   useEffect(() => {
-    if (dummyData || !userMeta) return;
+    if (dummyData || crisisSupport || !userMeta) return;
     if (userMeta.sessionsCompleted >= 1 && !userMeta.onboardingComplete && showSummary) {
       const t = setTimeout(() => setShowCheckinOnboarding(true), 2500);
       return () => clearTimeout(t);
     }
-  }, [userMeta, showSummary, dummyData]);
+  }, [userMeta, showSummary, dummyData, crisisSupport]);
 
   useEffect(() => {
-    if (dummyData) return;
+    if (dummyData || crisisSupport) return;
     const openCount = loops.filter(
       (l) => l.state === "open_attention" || l.state === "next_step_known"
     ).length;
     if (openCount >= 25 && !localStorage.getItem(releasePassDismissKey())) {
       setShowReleasePass(true);
     }
-  }, [loops, dummyData]);
+  }, [loops, dummyData, crisisSupport]);
 
   useEffect(() => {
-    if (dummyData) return;
+    if (dummyData || crisisSupport) return;
     fetch("/api/resurface")
       .then((r) => r.json())
       .then((data) => {
@@ -164,7 +174,7 @@ function FieldContent() {
           setShowResurfaceBanner(true);
         }
       });
-  }, [dummyData]);
+  }, [dummyData, crisisSupport]);
 
   const dismissResurface = async () => {
     setShowResurfaceBanner(false);
@@ -184,6 +194,53 @@ function FieldContent() {
     setClosingLoopId(id);
   };
 
+  const handleProposalConfirm = async (proposal: ExtractionProposal) => {
+    const res = await fetch("/api/loops/apply-proposal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        confirmed: true,
+        loop_id: proposal.loop_id,
+        change: proposal.change,
+        evidence: proposal.evidence,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+
+    if (data.removedId) {
+      setLoops((prev) =>
+        prev
+          .filter((l) => l.id !== data.removedId)
+          .map((l) => (l.id === data.loop?.id ? data.loop : l))
+      );
+    } else if (data.loop) {
+      handleLoopUpdate(data.loop);
+      if (data.loop.state === "done" || data.loop.state === "released") {
+        setLoops((prev) => prev.filter((l) => l.id !== data.loop.id));
+      }
+    }
+    removePendingProposal(proposal.id);
+    setProposals(loadPendingProposals());
+  };
+
+  const handleProposalDismiss = (proposalId: string) => {
+    removePendingProposal(proposalId);
+    setProposals(loadPendingProposals());
+  };
+
+  if (crisisSupport) {
+    return (
+      <CrisisSupport
+        onContinue={() => {
+          setLoading(true);
+          router.replace("/field");
+          fetchLoops();
+        }}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
@@ -194,10 +251,6 @@ function FieldContent() {
 
   return (
     <>
-      {showCrisisCard && (
-        <CrisisCard onDismiss={() => setShowCrisisCard(false)} />
-      )}
-
       <InstallPrompt
         show={showInstallPrompt}
         onDismiss={() => setShowInstallPrompt(false)}
@@ -232,6 +285,13 @@ function FieldContent() {
         newLoopIds={newLoopIds}
         closingLoopId={closingLoopId}
         dummyMode={dummyData}
+      />
+
+      <ProposalCards
+        proposals={proposals}
+        loops={loops}
+        onConfirm={handleProposalConfirm}
+        onDismiss={handleProposalDismiss}
       />
 
       <AnimatePresence>

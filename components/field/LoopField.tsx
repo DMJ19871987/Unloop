@@ -69,27 +69,23 @@ export function LoopField({
       false
     );
 
+    const visibleCap = fieldSize.width < 480 ? 8 : 14;
+    const cappedVisible = visible.slice(0, visibleCap);
+    const hidden = [...visible.slice(visibleCap), ...collapsed];
+
     const allParked =
-      collapsed.length > 0 && collapsed.every((c) => c.state === "parked");
-    const label = allParked ? `${collapsed.length} parked` : `${collapsed.length} more`;
+      hidden.length > 0 && hidden.every((item) => item.state === "parked");
+    const label = allParked ? `${hidden.length} parked` : `${hidden.length} more`;
 
-    if (showCollapsedCluster) {
-      return {
-        visibleLoops: loops,
-        collapsedLoops: loops.filter((l) => collapsed.some((c) => c.id === l.id)),
-        collapsedCount: collapsed.length,
-        clusterLabel: label,
-      };
-    }
-
-    const visibleIds = new Set(visible.map((v) => v.id));
+    const visibleIds = new Set(cappedVisible.map((item) => item.id));
+    const hiddenIds = new Set(hidden.map((item) => item.id));
     return {
       visibleLoops: loops.filter((l) => visibleIds.has(l.id)),
-      collapsedLoops: loops.filter((l) => collapsed.some((c) => c.id === l.id)),
-      collapsedCount: collapsed.length,
+      collapsedLoops: loops.filter((l) => hiddenIds.has(l.id)),
+      collapsedCount: hidden.length,
       clusterLabel: label,
     };
-  }, [loops, showCollapsedCluster]);
+  }, [fieldSize.width, loops]);
 
   const positions = useMemo(() => {
     const layout = computeLoopLayout(
@@ -122,10 +118,14 @@ export function LoopField({
   }, [visibleLoops, newLoopIds]);
 
   return (
-    <div className="relative min-h-[85vh] flex flex-col">
-      <header className="px-7 pt-4 pb-2 flex items-start justify-between">
-        <div>
-          <h1 className="font-heading text-[21px] font-medium text-ink">Occupying you</h1>
+    <div className="relative min-h-[85vh] flex flex-col overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-10 h-72 field-surface opacity-80" aria-hidden />
+      <header className="relative z-10 px-6 sm:px-8 pt-6 pb-3 flex items-start justify-between gap-4">
+        <div className="animate-float-in">
+          <p className="font-ui text-[10px] uppercase tracking-[2.6px] text-ink-placeholder mb-1">
+            Mental field
+          </p>
+          <h1 className="font-heading text-[26px] font-medium text-ink">Occupying you</h1>
           <SummaryBar loops={loops} />
         </div>
         <FieldToggle view="occupying" />
@@ -133,10 +133,15 @@ export function LoopField({
 
       <div
         ref={fieldRef}
-        className="relative flex-1 mx-auto w-full max-w-[390px] lg:max-w-[720px] min-h-[520px]"
+        className="relative flex-1 mx-auto w-full max-w-[420px] lg:max-w-[760px] min-h-[540px]"
       >
+        <div
+          className="pointer-events-none absolute inset-x-8 top-16 h-[360px] rounded-full border border-border/40 opacity-45"
+          style={{ animation: "field-breathe 9s ease-in-out infinite" }}
+          aria-hidden
+        />
         {isEmpty ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 animate-float-in">
             <LoopCircle
               state="parked"
               weight={3}
@@ -148,12 +153,12 @@ export function LoopField({
               showLabel={false}
               forField
             />
-            <p className="font-heading italic text-ink-muted text-base leading-relaxed mt-6">
+            <p className="font-heading italic text-ink-muted text-lg leading-relaxed mt-7 max-w-xs">
               A quiet head. It&apos;ll fill again — that&apos;s what heads do.
             </p>
             <Link
               href="/record"
-              className="mt-4 font-ui text-sm text-ink-faint hover:text-accent-selected"
+              className="mt-5 inline-flex min-h-[48px] items-center rounded-full border border-border/70 bg-sheet/70 px-5 font-ui text-sm text-ink-faint shadow-subtle transition hover:border-accent/40 hover:text-accent-selected"
             >
               View your record
             </Link>
@@ -174,7 +179,6 @@ export function LoopField({
                 <motion.div
                   key={loop.id}
                   className="absolute"
-                  style={{ transform: "translate(-50%, -50%)" }}
                   initial={
                     isNew
                       ? {
@@ -226,11 +230,14 @@ export function LoopField({
                         }
                   }
                 >
+                  <div className="-translate-x-1/2 -translate-y-1/2">
                   <motion.button
                     type="button"
                     onClick={() => setSelectedId(loop.id)}
-                    className="focus:outline-none"
+                    className="group focus:outline-none"
                     aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
+                    whileHover={{ scale: 1.035 }}
+                    whileTap={{ scale: 0.96 }}
                   >
                   <LoopCircle
                     label={loop.label}
@@ -247,6 +254,7 @@ export function LoopField({
                     forField
                   />
                 </motion.button>
+                  </div>
                 </motion.div>
               );
             })}
@@ -257,7 +265,7 @@ export function LoopField({
           <button
             type="button"
             onClick={() => setShowCollapsedCluster(true)}
-            className="absolute right-3 bottom-24 flex items-center gap-2 bg-sheet border border-border rounded-full px-3 py-2 min-h-[48px] shadow-subtle"
+            className="absolute right-4 bottom-28 flex items-center gap-2 glass-panel rounded-full px-3 py-2 min-h-[48px] transition hover:-translate-y-0.5"
             aria-label={`${clusterLabel}, tap to expand`}
           >
             <span className="flex -space-x-1.5" aria-hidden>
@@ -282,27 +290,55 @@ export function LoopField({
         )}
 
         {collapsedCount > 0 && showCollapsedCluster && (
-          <button
-            type="button"
-            onClick={() => setShowCollapsedCluster(false)}
-            className="absolute right-3 bottom-24 flex items-center gap-2 bg-sheet border border-border rounded-full px-4 py-2 min-h-[48px] shadow-subtle font-ui text-xs text-ink-faint"
-          >
-            Collapse {clusterLabel}
-          </button>
+          <div className="glass-panel absolute inset-x-4 bottom-24 z-30 max-h-[330px] overflow-y-auto rounded-[24px] p-3 shadow-float">
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-sheet/90 px-2 pb-2 pt-1 backdrop-blur">
+              <div>
+                <p className="font-ui text-[10px] uppercase tracking-[2px] text-ink-placeholder">Field index</p>
+                <p className="font-heading text-base text-ink">More loops</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCollapsedCluster(false)}
+                className="min-h-[44px] px-2 font-ui text-xs text-ink-faint hover:text-ink"
+              >
+                Close
+              </button>
+            </div>
+            <div className="divide-y divide-border-soft">
+              {collapsedLoops.map((loop) => (
+                <button
+                  key={loop.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(loop.id);
+                    setShowCollapsedCluster(false);
+                  }}
+                  className="grid min-h-[58px] w-full grid-cols-[1fr_auto] items-center gap-3 px-2 text-left transition hover:pl-3"
+                >
+                  <span className="truncate font-heading text-sm text-ink-soft">{loop.label}</span>
+                  <span className="font-ui text-[11px] capitalize text-ink-placeholder">
+                    {loop.state.replace(/_/g, " ")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
       <Link
         href="/offload"
-        className="fixed bottom-8 left-1/2 -translate-x-1/2 focus:outline-none"
+        className="fixed bottom-7 left-1/2 z-20 -translate-x-1/2 focus:outline-none"
         aria-label="Empty your head"
       >
         <motion.div
-          className="w-14 h-14 rounded-full bg-accent-breathe border border-accent/30 flex items-center justify-center"
+          className="w-[68px] h-[68px] rounded-full bg-accent-breathe border border-accent/30 flex items-center justify-center shadow-float backdrop-blur"
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
         >
-          <div className="w-8 h-8 rounded-full bg-accent-button" />
+          <div className="w-10 h-10 rounded-full bg-accent-button shadow-[var(--shadow-inset)]" />
         </motion.div>
       </Link>
 

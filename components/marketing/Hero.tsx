@@ -13,10 +13,14 @@ export function Hero() {
   const prelaunch = isPrelaunch();
 
   return (
-    <section className="px-6 py-16 md:py-24 max-w-6xl mx-auto">
-      <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
-        <div className="space-y-6">
-          <h1 className="font-heading text-4xl md:text-5xl font-semibold text-ink tracking-tight text-balance">
+    <section className="relative px-6 pt-14 pb-16 md:pt-20 md:pb-24 max-w-6xl mx-auto overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-4 top-10 h-80 field-surface opacity-70" aria-hidden />
+      <div className="relative grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+        <div className="space-y-6 animate-float-in">
+          <p className="font-ui text-[10px] uppercase tracking-[3px] text-ink-placeholder">
+            Voice-first mental offload
+          </p>
+          <h1 className="font-heading text-5xl md:text-6xl font-semibold text-ink text-balance leading-[1.02]">
             Empty your head.
           </h1>
           <p className="font-ui text-lg text-ink-muted leading-relaxed max-w-md">
@@ -30,13 +34,13 @@ export function Hero() {
                 <Link
                   href="/sign-up"
                   onClick={() => track("signup_started", { source: "hero" })}
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent text-white font-ui text-sm font-medium hover:opacity-90 transition-opacity min-h-[48px]"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent text-white font-ui text-sm font-medium hover:bg-accent-hover transition-colors min-h-[48px] shadow-soft"
                 >
                   Start unlooping — 7 days free
                 </Link>
                 <a
                   href="#how-it-works"
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-full border border-border text-ink-soft font-ui text-sm hover:text-accent-selected transition-colors min-h-[48px]"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-full border border-border bg-sheet/55 text-ink-soft font-ui text-sm hover:border-accent/40 hover:text-accent-selected transition-colors min-h-[48px]"
                 >
                   See how it works
                 </a>
@@ -52,7 +56,9 @@ export function Hero() {
             </p>
           )}
         </div>
-        <HeroFieldDemo />
+        <div className="animate-float-in [animation-delay:120ms]">
+          <HeroFieldDemo />
+        </div>
       </div>
     </section>
   );
@@ -60,7 +66,7 @@ export function Hero() {
 
 export function PullQuote() {
   return (
-    <section className="px-6 py-14 bg-accent-tint/30">
+    <section className="px-6 py-14 bg-accent-tint/30 border-y border-border/50">
       <blockquote className="max-w-3xl mx-auto text-center">
         <p className="font-heading text-xl md:text-2xl text-ink leading-relaxed">
           Your working memory isn&apos;t storage. Every open loop you&apos;re holding is rented headspace.
@@ -95,7 +101,7 @@ export function RecordSection() {
   return (
     <section className="px-6 py-16 max-w-6xl mx-auto">
       <div className="grid md:grid-cols-2 gap-10 items-center">
-        <div className="relative aspect-square max-w-sm mx-auto bg-paper border border-border rounded-2xl p-8 flex items-center justify-center">
+        <div className="relative aspect-square max-w-sm mx-auto glass-panel rounded-[28px] p-8 flex items-center justify-center field-surface">
           <div className="text-center space-y-4">
             <div className="inline-flex rounded-full border border-border px-4 py-2 font-ui text-sm text-ink-soft">
               <span className="text-accent-selected font-medium">Occupying you</span>
@@ -131,7 +137,7 @@ export function RecordSection() {
 
 export function PrivacyBand() {
   return (
-    <section className="px-6 py-14 bg-ink text-paper">
+    <section className="px-6 py-14 bg-ink text-paper shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
       <div className="max-w-3xl mx-auto text-center space-y-3">
         <h2 className="font-heading text-xl font-medium">Spoken, structured, deleted.</h2>
         <p className="font-ui text-sm leading-relaxed opacity-90">

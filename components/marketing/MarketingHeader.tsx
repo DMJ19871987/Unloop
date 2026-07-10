@@ -5,7 +5,7 @@ export function MarketingHeader() {
   const prelaunch = isPrelaunch();
 
   return (
-    <header className="px-6 py-4 border-b border-border">
+    <header className="sticky top-0 z-30 px-6 py-4 border-b border-border/70 bg-paper/78 backdrop-blur-xl">
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
         <Link href="/" className="font-heading text-lg text-ink">
           Unloop
@@ -20,7 +20,7 @@ export function MarketingHeader() {
           {!prelaunch && (
             <Link
               href="/sign-up"
-              className="inline-flex items-center px-4 py-2 rounded-full bg-accent text-white hover:opacity-90 transition-opacity min-h-[48px]"
+            className="inline-flex items-center px-4 py-2 rounded-full bg-accent text-white hover:bg-accent-hover transition-colors min-h-[48px] shadow-subtle"
             >
               Start free trial
             </Link>

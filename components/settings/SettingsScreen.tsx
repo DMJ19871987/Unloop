@@ -94,23 +94,28 @@ export function SettingsScreen() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-6 py-10 space-y-8 pb-20">
-      <h1 className="font-heading text-2xl font-medium text-ink">Settings</h1>
+    <div className="max-w-xl mx-auto px-6 py-10 space-y-7 pb-20">
+      <div className="animate-float-in">
+        <p className="font-ui text-[10px] uppercase tracking-[2.6px] text-ink-placeholder mb-1">
+          Control room
+        </p>
+        <h1 className="font-heading text-[28px] font-medium text-ink">Settings</h1>
+      </div>
 
       {message && (
-        <p className="font-ui text-sm text-ink-muted bg-sheet border border-border rounded-xl px-4 py-3">
+        <p className="font-ui text-sm text-ink-muted glass-panel rounded-2xl px-4 py-3">
           {message}
         </p>
       )}
 
-      <section className="space-y-3">
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">Account</h2>
         <p className="font-ui text-sm text-ink-soft">{settings?.email}</p>
         {hasClerk && (
           <button
             type="button"
             onClick={() => setShowProfile(true)}
-            className="block font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px]"
+            className="block font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px] rounded-full"
           >
             Manage account
           </button>
@@ -118,7 +123,7 @@ export function SettingsScreen() {
         <button
           type="button"
           onClick={openBilling}
-          className="font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px]"
+          className="font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px] rounded-full"
         >
           Manage subscription ({settings?.subscriptionStatus})
         </button>
@@ -139,7 +144,7 @@ export function SettingsScreen() {
         </div>
       )}
 
-      <section className="space-y-3">
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">Appearance</h2>
         <div className="flex gap-2">
           {(["light", "dark", "system"] as const).map((t) => (
@@ -149,8 +154,8 @@ export function SettingsScreen() {
               onClick={() => setTheme(t)}
               className={`px-4 py-2 rounded-full font-ui text-sm min-h-[48px] border ${
                 theme === t
-                  ? "border-accent bg-accent-tint text-accent-selected"
-                  : "border-border text-ink-soft"
+                  ? "border-accent bg-accent-tint text-accent-selected shadow-subtle"
+                  : "border-border bg-paper/45 text-ink-soft hover:border-accent/40"
               }`}
             >
               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -159,7 +164,7 @@ export function SettingsScreen() {
         </div>
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">
           Notifications
         </h2>
@@ -184,7 +189,7 @@ export function SettingsScreen() {
                 track("notification_optin", { type: "checkin", hour });
               }
             }}
-            className="font-ui text-sm border border-border rounded-full px-3 py-2 bg-sheet text-ink-soft min-h-[48px]"
+            className="font-ui text-sm border border-border rounded-full px-3 py-2 bg-paper/55 text-ink-soft min-h-[48px] focus:outline-none focus:border-accent"
           >
             <option value="off">Off</option>
             <option value="18">6pm</option>
@@ -206,7 +211,7 @@ export function SettingsScreen() {
         </button>
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">
           Privacy &amp; data
         </h2>

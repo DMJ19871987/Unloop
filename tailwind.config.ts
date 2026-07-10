@@ -32,6 +32,8 @@ const config: Config = {
       boxShadow: {
         subtle: "0 1px 3px rgba(43, 39, 36, 0.08)",
         sheet: "0 -20px 60px rgba(74, 58, 42, 0.14)",
+        float: "var(--shadow-float)",
+        soft: "var(--shadow-soft)",
       },
       borderRadius: {
         sheet: "32px",

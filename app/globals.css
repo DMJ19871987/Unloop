@@ -20,6 +20,11 @@
   --sheet: #fcfaf6;
   --border: #e3d9cd;
   --border-soft: #eadfd2;
+  --field-glow: rgba(196, 99, 62, 0.13);
+  --field-mist: rgba(104, 124, 111, 0.12);
+  --shadow-soft: 0 16px 50px rgba(67, 51, 38, 0.12);
+  --shadow-float: 0 24px 80px rgba(67, 51, 38, 0.16);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.66);
   --font-heading: "Fraunces", Georgia, serif;
   --font-ui: "Inter", system-ui, sans-serif;
 }
@@ -42,16 +47,37 @@
   --sheet: #252220;
   --border: #3d3834;
   --border-soft: #332e2a;
+  --field-glow: rgba(184, 106, 74, 0.18);
+  --field-mist: rgba(151, 168, 150, 0.1);
+  --shadow-soft: 0 16px 50px rgba(0, 0, 0, 0.28);
+  --shadow-float: 0 24px 80px rgba(0, 0, 0, 0.36);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-paper text-ink font-ui;
+    background:
+      radial-gradient(circle at 18% 12%, var(--field-glow), transparent 32rem),
+      radial-gradient(circle at 88% 8%, var(--field-mist), transparent 28rem),
+      linear-gradient(180deg, color-mix(in srgb, var(--paper) 96%, white), var(--paper));
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 72%, white);
+    outline-offset: 4px;
   }
 }
 
@@ -62,6 +88,56 @@
 
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .app-atmosphere {
+    background:
+      radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent-tint) 34%, transparent), transparent 34rem),
+      linear-gradient(180deg, color-mix(in srgb, var(--paper) 92%, var(--sheet)), var(--paper));
+  }
+
+  .field-surface {
+    background:
+      radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--accent-tint) 25%, transparent), transparent 17rem),
+      radial-gradient(circle at 25% 25%, color-mix(in srgb, var(--field-mist) 80%, transparent), transparent 16rem);
+  }
+
+  .glass-panel {
+    background: color-mix(in srgb, var(--sheet) 84%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    box-shadow: var(--shadow-soft), var(--shadow-inset);
+    backdrop-filter: blur(18px);
+  }
+
+  .quiet-divider {
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  .animate-float-in {
+    animation: float-in 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes field-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.95;
   }
 }
 

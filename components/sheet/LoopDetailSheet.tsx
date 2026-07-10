@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LoopCircle } from "@/components/field/LoopCircle";
 import { ClosureOptions } from "./ClosureOptions";
 import { NextStepInput } from "./NextStepInput";
+import { LoopHistoryPanel } from "./LoopHistoryPanel";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { platform } from "@/lib/platform";
 import { track } from "@/lib/analytics";
@@ -46,6 +47,7 @@ export function LoopDetailSheet({
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [mode, setMode] = useState<"default" | "edit" | "merge">("default");
+  const [view, setView] = useState<"now" | "history">("now");
   const [editLabel, setEditLabel] = useState("");
   const trapRef = useFocusTrap(open);
 
@@ -56,6 +58,7 @@ export function LoopDetailSheet({
       setSelectedAction(null);
       setConfirmText(null);
       setActionError(null);
+      setView("now");
     }
   }, [loop, open]);
 
@@ -303,7 +306,7 @@ export function LoopDetailSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-paper/60 z-40"
+            className="fixed inset-0 bg-ink/10 backdrop-blur-[3px] z-40"
             onClick={onClose}
             aria-hidden
           />
@@ -316,9 +319,9 @@ export function LoopDetailSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-sheet rounded-t-sheet shadow-sheet px-7 pt-3 pb-10 min-h-[58vh] max-h-[85vh] overflow-y-auto safe-area-bottom"
+            className="fixed inset-x-0 bottom-0 z-50 bg-sheet/95 rounded-t-sheet shadow-float px-7 pt-3 pb-10 min-h-[58vh] max-h-[85vh] overflow-y-auto safe-area-bottom border-t border-border/80 backdrop-blur-xl"
           >
-            <div className="w-[42px] h-[5px] rounded-full bg-border mx-auto mb-4" aria-hidden />
+            <div className="w-[46px] h-[5px] rounded-full bg-border mx-auto mb-5" aria-hidden />
 
             <div className="flex justify-center mb-2">
               <LoopCircle
@@ -342,7 +345,7 @@ export function LoopDetailSheet({
                   id="edit-label"
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border border-border bg-paper font-ui text-sm min-h-[48px]"
+                  className="w-full px-4 py-3 rounded-2xl border border-border bg-paper/80 font-ui text-sm min-h-[48px] shadow-[var(--shadow-inset)] focus:outline-none focus:border-accent"
                   disabled={loading}
                 />
                 <div className="flex gap-2">
@@ -352,7 +355,7 @@ export function LoopDetailSheet({
                       setMode("default");
                       setActionError(null);
                     }}
-                    className="flex-1 py-3 rounded-full border border-border font-ui text-sm min-h-[48px]"
+                    className="flex-1 py-3 rounded-full border border-border bg-sheet/60 font-ui text-sm min-h-[48px] transition hover:border-accent/40"
                   >
                     Cancel
                   </button>
@@ -360,7 +363,7 @@ export function LoopDetailSheet({
                     type="button"
                     onClick={saveLabel}
                     disabled={loading}
-                    className="flex-1 py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] disabled:opacity-40"
+                    className="flex-1 py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] shadow-subtle transition hover:bg-accent-hover disabled:opacity-40"
                   >
                     {loading ? "Saving…" : "Save"}
                   </button>
@@ -376,7 +379,7 @@ export function LoopDetailSheet({
                     type="button"
                     onClick={() => mergeInto(t.id)}
                     disabled={loading}
-                    className="w-full py-3 rounded-full border border-border font-ui text-sm text-ink-soft min-h-[48px] hover:border-accent disabled:opacity-40"
+                    className="w-full py-3 rounded-full border border-border bg-paper/45 font-ui text-sm text-ink-soft min-h-[48px] transition hover:border-accent hover:-translate-y-0.5 disabled:opacity-40"
                   >
                     {t.label}
                   </button>
@@ -397,73 +400,115 @@ export function LoopDetailSheet({
                 <h2 id="loop-sheet-title" className="font-heading text-[26px] font-medium text-ink text-center">
                   {loop.label}
                 </h2>
-                <p className="font-ui text-[15px] text-ink-muted text-center mt-2 mb-5">
-                  What would help you release this?
-                </p>
+                <div className="mx-auto mt-4 mb-6 grid max-w-xs grid-cols-2 rounded-full border border-border bg-paper/45 p-1 font-ui text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setView("now")}
+                    className={`min-h-[40px] rounded-full px-4 transition ${
+                      view === "now" ? "bg-sheet text-ink shadow-subtle" : "text-ink-faint"
+                    }`}
+                    aria-pressed={view === "now"}
+                  >
+                    Now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView("history")}
+                    className={`min-h-[40px] rounded-full px-4 transition ${
+                      view === "history" ? "bg-sheet text-ink shadow-subtle" : "text-ink-faint"
+                    }`}
+                    aria-pressed={view === "history"}
+                  >
+                    Story
+                  </button>
+                </div>
 
-                {confirmText ? (
-                  <p className="font-ui text-center text-ink-muted py-8">{confirmText}</p>
-                ) : selectedAction === "next_step_known" ? (
-                  <>
-                    {actionError && <ActionError message={actionError} />}
-                    <NextStepInput
-                      onSave={(nextStep) => handleAction("next_step_known", { nextStep })}
-                      onCancel={() => {
-                        setSelectedAction(null);
-                        setActionError(null);
-                      }}
-                      saving={loading}
-                    />
-                  </>
+                {view === "history" ? (
+                  <div className="mx-auto max-w-md pb-2">
+                    <LoopHistoryPanel loop={loop} dummyMode={dummyMode} />
+                  </div>
                 ) : (
                   <>
-                    {actionError && <ActionError message={actionError} />}
-                    <ClosureOptions
-                      onSelect={handleAction}
-                      onPark={(resurfaceAfter) =>
-                        handleAction(
-                          "parked",
-                          resurfaceAfter ? { resurfaceAfter } : undefined
-                        )
-                      }
-                      disabled={loading}
-                    />
-                  </>
-                )}
-
-                {!confirmText && selectedAction !== "next_step_known" && (
-                  <div className="flex flex-wrap justify-center gap-4 mt-8 font-ui text-xs text-ink-faint">
-                    {mergeTargets.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode("merge");
-                          setActionError(null);
-                        }}
-                        className="hover:text-ink-soft min-h-[48px] px-2"
-                      >
-                        merge with another loop
-                      </button>
+                    <div className="mx-auto mb-6 flex max-w-sm flex-wrap justify-center gap-x-4 gap-y-2 font-ui text-xs text-ink-faint">
+                      <span className="capitalize">{loop.category}</span>
+                      <span>{loop.mentionCount} mention{loop.mentionCount === 1 ? "" : "s"}</span>
+                      <span>Weight {loop.weight}/5</span>
+                    </div>
+                    {loop.nextStep && (
+                      <div className="mx-auto mb-6 max-w-sm rounded-2xl border border-border-soft bg-paper/45 px-4 py-3 text-center">
+                        <p className="font-ui text-[10px] uppercase tracking-[1.8px] text-ink-placeholder">Next step</p>
+                        <p className="mt-1 font-heading text-[15px] text-ink-soft">{loop.nextStep}</p>
+                      </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("edit");
-                        setActionError(null);
-                      }}
-                      className="hover:text-ink-soft min-h-[48px] px-2"
-                    >
-                      edit label
-                    </button>
-                    <button
-                      type="button"
-                      onClick={deleteLoop}
-                      disabled={loading}
-                      className="hover:text-ink-soft min-h-[48px] px-2 disabled:opacity-40"
-                    >
-                      delete
-                    </button>
-                  </div>
+                    <p className="mb-6 mt-2 text-center font-ui text-[15px] text-ink-muted">
+                      What would help you release this?
+                    </p>
+
+                    {confirmText ? (
+                      <p className="py-8 text-center font-ui text-ink-muted">{confirmText}</p>
+                    ) : selectedAction === "next_step_known" ? (
+                      <>
+                        {actionError && <ActionError message={actionError} />}
+                        <NextStepInput
+                          onSave={(nextStep) => handleAction("next_step_known", { nextStep })}
+                          onCancel={() => {
+                            setSelectedAction(null);
+                            setActionError(null);
+                          }}
+                          saving={loading}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {actionError && <ActionError message={actionError} />}
+                        <ClosureOptions
+                          onSelect={handleAction}
+                          onPark={(resurfaceAfter) =>
+                            handleAction(
+                              "parked",
+                              resurfaceAfter ? { resurfaceAfter } : undefined
+                            )
+                          }
+                          disabled={loading}
+                        />
+                      </>
+                    )}
+
+                    {!confirmText && selectedAction !== "next_step_known" && (
+                      <div className="mt-8 flex flex-wrap justify-center gap-4 font-ui text-xs text-ink-faint">
+                        {mergeTargets.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode("merge");
+                              setActionError(null);
+                            }}
+                            className="min-h-[48px] px-2 hover:text-ink-soft"
+                          >
+                            merge with another loop
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode("edit");
+                            setActionError(null);
+                          }}
+                          className="min-h-[48px] px-2 hover:text-ink-soft"
+                        >
+                          edit label
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteLoop}
+                          disabled={loading}
+                          className="min-h-[48px] px-2 hover:text-ink-soft disabled:opacity-40"
+                        >
+                          delete
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}

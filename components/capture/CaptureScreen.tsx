@@ -339,23 +339,23 @@ export function CaptureScreen() {
   };
 
   return (
-    <div className="min-h-[85vh] flex flex-col bg-paper">
-      <div className="text-center pt-4 text-xs tracking-[3px] uppercase text-ink-placeholder">
+    <div className="min-h-[85vh] flex flex-col app-atmosphere overflow-hidden">
+      <div className="text-center pt-6 text-[10px] tracking-[3px] uppercase text-ink-placeholder">
         Unloop
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center gap-10 px-6 pb-10">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6 pb-10">
         {phase !== "typing" ? (
           <>
-            <h1 className="font-heading text-[27px] font-medium text-ink text-center">
+            <h1 className="font-heading text-[32px] font-medium text-ink text-center text-balance">
               {phase === "processing" ? "Finding your loops…" : "Empty your head."}
             </h1>
 
             {phase === "processing" ? (
               <motion.div
-                className="w-3 h-3 rounded-full bg-accent"
-                animate={{ scale: [1, 0.6, 1] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
+                className="relative w-[150px] h-[150px] rounded-full border border-accent/25 bg-accent-breathe/60 shadow-soft"
+                animate={{ scale: [1, 1.05, 1], rotate: [0, 3, 0] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
               />
             ) : (
               <RecordButton
@@ -372,7 +372,7 @@ export function CaptureScreen() {
               />
             )}
 
-            <p className="font-ui text-sm text-ink-faint tracking-wide">{statusText}</p>
+            <p className="rounded-full border border-border/70 bg-sheet/68 px-4 py-2 font-ui text-sm text-ink-faint tracking-wide shadow-subtle backdrop-blur">{statusText}</p>
 
             {micDenied && (
               <p className="font-ui text-sm text-ink-muted text-center max-w-xs">
@@ -381,7 +381,7 @@ export function CaptureScreen() {
             )}
 
             {error && (
-              <div className="flex flex-col items-center gap-2 max-w-xs">
+              <div className="flex flex-col items-center gap-2 max-w-xs glass-panel rounded-2xl px-4 py-3">
                 <p className="font-ui text-sm text-accent text-center">{error}</p>
                 {(hasQueuedAudio || retryPayload) && (
                   <button
@@ -417,20 +417,20 @@ export function CaptureScreen() {
               <button
                 type="button"
                 onClick={() => setPhase("typing")}
-                className="font-ui text-sm text-ink-faint hover:text-accent-selected transition-colors min-h-[48px]"
+                className="font-ui text-sm text-ink-faint hover:text-accent-selected transition-colors min-h-[48px] rounded-full px-5 hover:bg-sheet/70"
               >
                 or type it
               </button>
             )}
           </>
         ) : (
-          <div className="w-full max-w-md space-y-4">
-            <h2 className="font-heading text-xl text-ink text-center">Type your offload</h2>
+          <div className="w-full max-w-md space-y-4 glass-panel rounded-[28px] p-5 sm:p-6 animate-float-in">
+            <h2 className="font-heading text-2xl text-ink text-center">Type your offload</h2>
             <textarea
               value={typedText}
               onChange={(e) => setTypedText(e.target.value)}
               placeholder="What's swirling around…"
-              className="w-full h-40 p-4 rounded-2xl border border-border bg-sheet font-ui text-sm text-ink resize-none focus:outline-none focus:border-accent"
+              className="w-full h-44 p-4 rounded-2xl border border-border bg-paper/70 font-ui text-sm text-ink resize-none focus:outline-none focus:border-accent shadow-[var(--shadow-inset)]"
               autoFocus
             />
             <div className="flex gap-3 justify-center">
@@ -440,7 +440,7 @@ export function CaptureScreen() {
                   setPhase("idle");
                   setTypedText("");
                 }}
-                className="px-5 py-3 rounded-full border border-border font-ui text-sm text-ink-soft min-h-[48px]"
+                className="px-5 py-3 rounded-full border border-border bg-sheet/60 font-ui text-sm text-ink-soft min-h-[48px] transition hover:border-accent/40"
               >
                 Cancel
               </button>
@@ -448,7 +448,7 @@ export function CaptureScreen() {
                 type="button"
                 disabled={!typedText.trim() || writeBlocked}
                 onClick={handleTextExtract}
-                className="px-5 py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] disabled:opacity-40"
+                className="px-5 py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] shadow-subtle transition hover:bg-accent-hover disabled:opacity-40"
               >
                 Find loops
               </button>

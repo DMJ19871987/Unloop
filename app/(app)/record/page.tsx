@@ -81,6 +81,7 @@ export default function RecordPage() {
       counter={counter}
       weeklySummaries={weeklySummaries}
       onReopen={handleReopen}
+      dummyMode={dummyData}
     />
   );
 }

@@ -33,6 +33,7 @@ export interface ExtractedNewLoop {
   emotional_intensity: number;
   category: string;
   next_step: string | null;
+  evidence?: string;
 }
 
 export interface ExtractedMatchedLoop {

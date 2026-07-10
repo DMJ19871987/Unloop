@@ -19,7 +19,7 @@ Rules:
 - If the transcript contains no loops, return empty arrays. Do not invent loops.
 - Never include advice, commentary, or judgement.
 - Return "flag": "crisis" if the transcript references self-harm, suicide, or harming others; otherwise "flag": null.
-- For every matched_loops entry: mention_count_delta is always 1; include confidence (0.0–1.0) and evidence (a short verbatim quote from the transcript).
+- For every new_loops and matched_loops entry, include evidence (a short verbatim quote from the transcript). For matched loops, mention_count_delta is always 1 and confidence is 0.0–1.0.
 - For merge_suggestions: only when two existing loops are clearly the same concern; include confidence and evidence.
 - State values use: open, next_step_known, parked, done, released. Map open_attention in the payload to "open".
 
@@ -32,6 +32,7 @@ Output ONLY valid JSON matching this shape — no prose, no markdown fences:
       "emotional_intensity": 1-5,
       "category": string,
       "next_step": string | null,
+      "evidence": string,
       "state": "open" | "next_step_known" | "parked" | null
     }
   ],

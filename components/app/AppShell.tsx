@@ -34,22 +34,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <DummyDataProvider>
       {hasClerk && <PostHogUserIdentify />}
       <SubscriptionGate>
-        <div className="min-h-screen bg-paper flex flex-col">
+        <div className="min-h-screen app-atmosphere flex flex-col">
           <SubscriptionBanner access={access} subscriptionStatus={subscriptionStatus} />
           {showDevNav && (
-            <header className="flex items-center justify-between px-6 py-4 border-b border-border gap-4 pt-[env(safe-area-inset-top)]">
-              <Link href="/field" className="font-heading text-lg text-ink shrink-0">
+            <header className="sticky top-0 z-30 flex items-center justify-between px-5 sm:px-7 py-3 border-b border-border/70 gap-4 pt-[env(safe-area-inset-top)] bg-paper/78 backdrop-blur-xl">
+              <Link href="/field" className="font-heading text-lg text-ink shrink-0 tracking-[0.01em]">
                 Unloop
               </Link>
-              <nav className="flex items-center gap-4 font-ui text-sm text-ink-faint flex-wrap justify-end">
+              <nav className="flex items-center gap-2 font-ui text-sm text-ink-faint flex-wrap justify-end">
                 <DummyDataToggle />
-                <Link href="/field" className="hover:text-ink transition-colors">
+                <Link href="/field" className="rounded-full px-3 py-2 hover:bg-sheet hover:text-ink transition-colors">
                   Field
                 </Link>
-                <Link href="/offload" className="hover:text-ink transition-colors">
+                <Link href="/offload" className="rounded-full px-3 py-2 hover:bg-sheet hover:text-ink transition-colors">
                   Capture
                 </Link>
-                <Link href="/settings" className="hover:text-ink transition-colors">
+                <Link href="/settings" className="rounded-full px-3 py-2 hover:bg-sheet hover:text-ink transition-colors">
                   Settings
                 </Link>
                 {hasClerk && <UserButton afterSignOutUrl="/" />}

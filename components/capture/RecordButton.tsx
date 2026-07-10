@@ -13,7 +13,7 @@ export function RecordButton({ isRecording, onTap }: RecordButtonProps) {
       type="button"
       onClick={onTap}
       aria-label={isRecording ? "Stop recording" : "Start recording"}
-      className="relative w-[216px] h-[216px] flex items-center justify-center focus:outline-none"
+      className="relative w-[230px] h-[230px] flex items-center justify-center focus:outline-none"
     >
       {isRecording && (
         <>
@@ -35,11 +35,15 @@ export function RecordButton({ isRecording, onTap }: RecordButtonProps) {
         </>
       )}
       <motion.div
-        className="absolute inset-[22px] rounded-full bg-accent-breathe"
+        className="absolute inset-[18px] rounded-full bg-accent-breathe shadow-soft"
         animate={{ scale: isRecording ? [1, 1.05, 1] : [1, 1.04, 1] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
       />
-      <div className="relative w-[148px] h-[148px] rounded-full bg-accent-button flex items-center justify-center shadow-[inset_0_1px_3px_rgba(255,255,255,0.6)]">
+      <motion.div
+        className="relative w-[154px] h-[154px] rounded-full bg-accent-button flex items-center justify-center shadow-[var(--shadow-inset),0_18px_40px_rgba(138,62,34,0.16)] border border-accent/10"
+        whileHover={{ scale: 1.035 }}
+        whileTap={{ scale: 0.94 }}
+      >
         <svg
           width="34"
           height="34"
@@ -55,7 +59,7 @@ export function RecordButton({ isRecording, onTap }: RecordButtonProps) {
           <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
           <line x1="12" y1="17.5" x2="12" y2="21" />
         </svg>
-      </div>
+      </motion.div>
     </button>
   );
 }

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getOrCreateUser } from "@/lib/auth/user";
 import { requireWriteUser, isWriteBlocked } from "@/lib/auth/require-access";
 import { getDb } from "@/lib/db/client";
-import { loops, loopEvents } from "@/lib/db/schema";
+import { loops, loopEvents, offloadSessions } from "@/lib/db/schema";
 import { transitionLoop, toLoopDTO } from "@/lib/loops/transitions";
 import { canTransition } from "@/lib/loops/state";
 import type { ClosureAction } from "@/lib/types/loop";
@@ -41,6 +41,88 @@ const bodySchema = z.union([
     nextStep: z.string().trim().min(1),
   }),
 ]);
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const user = await getOrCreateUser();
+  const db = getDb();
+
+  if (!user || !db) {
+    return NextResponse.json({ error: "Loop not found." }, { status: 404 });
+  }
+
+  const loop = await db.query.loops.findFirst({
+    where: and(eq(loops.id, id), eq(loops.userId, user.id)),
+  });
+
+  if (!loop) {
+    return NextResponse.json({ error: "Loop not found." }, { status: 404 });
+  }
+
+  const [events, sourceSession] = await Promise.all([
+    db.query.loopEvents.findMany({
+      where: and(eq(loopEvents.loopId, id), eq(loopEvents.userId, user.id)),
+      orderBy: [desc(loopEvents.createdAt)],
+    }),
+    loop.firstSessionId
+      ? db.query.offloadSessions.findFirst({
+          where: and(
+            eq(offloadSessions.id, loop.firstSessionId),
+            eq(offloadSessions.userId, user.id)
+          ),
+        })
+      : null,
+  ]);
+
+  const timeline = events.length
+    ? events.map((event) => ({
+        id: event.id,
+        fromState: event.fromState,
+        toState: event.toState,
+        note: sanitiseEventNote(event.note),
+        createdAt: event.createdAt?.toISOString() ?? new Date().toISOString(),
+      }))
+    : [
+        {
+          id: `${loop.id}-created`,
+          fromState: null,
+          toState: loop.state,
+          note: null,
+          createdAt: loop.createdAt?.toISOString() ?? new Date().toISOString(),
+        },
+      ];
+
+  return NextResponse.json({
+    loop: toLoopDTO(loop),
+    events: timeline,
+    source: sourceSession
+      ? {
+          inputMode: sourceSession.inputMode,
+          createdAt:
+            sourceSession.createdAt?.toISOString() ??
+            loop.createdAt?.toISOString() ??
+            new Date().toISOString(),
+          transcriptRetained: Boolean(user.keepTranscripts && sourceSession.transcript),
+        }
+      : null,
+  });
+}
+
+function sanitiseEventNote(note: string | null): string | null {
+  if (!note) return null;
+  const normalised = note.toLowerCase();
+  if (
+    normalised === "weight increased" ||
+    normalised === "reopened from record" ||
+    normalised.startsWith("merged into ")
+  ) {
+    return null;
+  }
+  return note.slice(0, 240);
+}
 
 export async function PATCH(
   request: Request,

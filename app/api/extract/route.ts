@@ -168,7 +168,7 @@ export async function POST(request: Request) {
           userId: user.id,
           fromState: null,
           toState: state,
-          note: item.next_step,
+          note: item.evidence ?? item.next_step,
         });
 
         newLoopRecords.push(created);

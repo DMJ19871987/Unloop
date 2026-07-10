@@ -14,7 +14,7 @@ export function FieldToggle({ view }: FieldToggleProps) {
     <Link
       href={view === "occupying" ? "/record" : "/field"}
       onClick={() => track("field_toggle_used", { view: targetView })}
-      className="inline-flex rounded-full border border-border px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[48px] items-center"
+      className="inline-flex rounded-full border border-border/80 bg-sheet/72 px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[48px] items-center shadow-subtle backdrop-blur transition hover:border-accent/40 hover:text-ink-soft"
     >
       <span className={view === "occupying" ? "text-accent-selected font-medium" : ""}>
         Occupying you

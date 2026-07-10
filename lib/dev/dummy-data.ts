@@ -25,7 +25,10 @@ function loop(
     updatedDaysAgo?: number;
   } = {}
 ): LoopDTO {
-  const created = opts.createdDaysAgo ?? 14;
+  const closedDaysAgo = opts.closedAt
+    ? Math.max(0, Math.round((Date.now() - new Date(opts.closedAt).getTime()) / 86400000))
+    : null;
+  const created = opts.createdDaysAgo ?? (closedDaysAgo === null ? 14 : closedDaysAgo + 14);
   const updated = opts.updatedDaysAgo ?? 1;
   return {
     id,

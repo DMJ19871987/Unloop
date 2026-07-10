@@ -29,6 +29,24 @@ export interface LoopDTO {
   y?: number;
 }
 
+export interface LoopEventDTO {
+  id: string;
+  fromState: LoopState | null;
+  toState: LoopState;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface LoopDetailsDTO {
+  loop: LoopDTO;
+  events: LoopEventDTO[];
+  source: {
+    inputMode: string;
+    createdAt: string;
+    transcriptRetained: boolean;
+  } | null;
+}
+
 import type { ExtractionProposal } from "@/lib/ai/extraction-types";
 import type { CrisisResources } from "@/lib/safety/crisis-resources";
 

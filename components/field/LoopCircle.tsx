@@ -144,7 +144,7 @@ export function LoopCircle({
         width={size}
         height={size}
         viewBox="0 0 100 100"
-        className="block shrink-0 overflow-visible"
+        className="block shrink-0 overflow-visible drop-shadow-[0_10px_18px_rgba(67,51,38,0.08)] transition duration-300 group-hover:drop-shadow-[0_14px_24px_rgba(67,51,38,0.14)]"
         aria-hidden={!label}
       >
         {strokeLayers.map((layer, i) => (

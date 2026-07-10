@@ -153,7 +153,7 @@ function boxesOverlap(
 }
 
 function nudgeLabels(nodes: SimNode[]): void {
-  const positions: LabelPosition[] = ["below", "above", "right"];
+  const positions: LabelPosition[] = ["below", "above"];
 
   for (let pass = 0; pass < 3; pass++) {
     let moved = false;
@@ -178,6 +178,24 @@ function nudgeLabels(nodes: SimNode[]): void {
       }
     }
     if (!moved) break;
+  }
+}
+
+function keepLabelsInView(nodes: SimNode[], width: number, height: number): void {
+  for (const node of nodes) {
+    const circleR = node.collideRadius - COLLIDE_PADDING - LABEL_HEIGHT;
+    const horizontalExtent = Math.max(circleR, node.labelWidth / 2);
+    const labelOffset = circleR + 6 + LABEL_HEIGHT;
+    const topExtent = node.labelPosition === "above" ? labelOffset : circleR;
+    const bottomExtent = node.labelPosition === "below" ? labelOffset : circleR;
+
+    const minX = VIEWPORT_MARGIN + horizontalExtent;
+    const maxX = width - VIEWPORT_MARGIN - horizontalExtent;
+    const minY = VIEWPORT_MARGIN + topExtent;
+    const maxY = height - VIEWPORT_MARGIN - bottomExtent;
+
+    node.x = minX > maxX ? width / 2 : Math.max(minX, Math.min(maxX, node.x ?? width / 2));
+    node.y = minY > maxY ? height / 2 : Math.max(minY, Math.min(maxY, node.y ?? height / 2));
   }
 }
 
@@ -295,6 +313,7 @@ export function computeLoopLayout(
   }
 
   nudgeLabels(nodes);
+  keepLabelsInView(nodes, width, height);
 
   return nodes.map((n) => ({
     id: n.id,

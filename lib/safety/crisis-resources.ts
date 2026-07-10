@@ -9,9 +9,8 @@ export interface CrisisResources {
   lines: CrisisLine[];
 }
 
-// TODO: final copy pending review — do not invent therapeutic or reassuring language.
 export const CRISIS_ACK_COPY =
-  "If you would like to talk to someone, these support lines are available.";
+  "Some of what you said sounds heavy. Unloop is a place to set thoughts down, not a source of support — if things feel like too much, talking to someone you trust or a professional can genuinely help. In the UK you can call or text Samaritans on 116 123, any time.";
 
 export const CRISIS_RESOURCES: CrisisResources = {
   region: "UK",
@@ -26,7 +25,7 @@ export const CRISIS_RESOURCES: CrisisResources = {
   ],
 };
 
-/** Days to retain crisis-flagged transcripts before purge. Tier 3 — wire to cron. */
+/** Days to retain crisis-flagged transcripts before purge (see /api/cron/purge-crisis-transcripts). */
 export function crisisTranscriptRetentionDays(): number {
   const raw = process.env.CRISIS_TRANSCRIPT_RETENTION_DAYS;
   const parsed = raw ? parseInt(raw, 10) : 30;

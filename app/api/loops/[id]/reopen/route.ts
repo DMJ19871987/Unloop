@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateUser } from "@/lib/auth/user";
+import { requireWriteUser, isWriteBlocked } from "@/lib/auth/require-access";
 import { getDb } from "@/lib/db/client";
 import { reopenLoop } from "@/lib/loops/record";
 
@@ -8,10 +8,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const user = await getOrCreateUser();
+  const writeUser = await requireWriteUser();
+  if (isWriteBlocked(writeUser)) return writeUser;
+  const user = writeUser;
   const db = getDb();
 
-  if (!user || !db) {
+  if (!db) {
     return NextResponse.json({ error: "Unavailable." }, { status: 503 });
   }
 

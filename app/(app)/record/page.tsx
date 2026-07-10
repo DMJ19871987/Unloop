@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RecordView } from "@/components/record/RecordView";
+import { track } from "@/lib/analytics";
 import { useDummyData } from "@/components/providers/DummyDataProvider";
 import {
   getDummyClosedLoops,
@@ -50,6 +51,7 @@ export default function RecordPage() {
     }
     setLoading(true);
     fetchRecord();
+    track("record_viewed");
   }, [dummyData, fetchRecord]);
 
   const handleReopen = async (id: string) => {

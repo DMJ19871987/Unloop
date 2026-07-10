@@ -14,7 +14,7 @@ export function ReleasePassBanner({ count, onDismiss }: ReleasePassBannerProps) 
       </p>
       <div className="flex gap-3 mt-3">
         <a
-          href="/field?view=released"
+          href="/record"
           className="px-4 py-2 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] inline-flex items-center"
         >
           Release pass

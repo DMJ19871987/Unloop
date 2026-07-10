@@ -67,13 +67,20 @@ export async function transitionLoop(
   const now = new Date();
   const isClosing = isTerminal(toState);
 
+  let resurfaceAfter = options?.resurfaceAfter ?? loop.resurfaceAfter;
+  if (toState === "parked" && !resurfaceAfter) {
+    const defaultResurface = new Date(now);
+    defaultResurface.setDate(defaultResurface.getDate() + 21);
+    resurfaceAfter = defaultResurface;
+  }
+
   const [updated] = await db.transaction(async (tx) => {
     const [u] = await tx
       .update(loops)
       .set({
         state: toState,
         nextStep: options?.nextStep ?? loop.nextStep,
-        resurfaceAfter: options?.resurfaceAfter ?? loop.resurfaceAfter,
+        resurfaceAfter,
         closedAt: isClosing ? now : loop.closedAt,
         updatedAt: now,
       })

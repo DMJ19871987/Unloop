@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { HeroFieldDemo } from "./HeroFieldDemo";
 import { BenefitCards } from "./BenefitCards";
@@ -5,6 +7,7 @@ import { PricingTable } from "./PricingTable";
 import { FaqAccordion } from "./FaqAccordion";
 import { WaitlistForm } from "./WaitlistForm";
 import { isPrelaunch } from "@/lib/stripe/config";
+import { track } from "@/lib/analytics";
 
 export function Hero() {
   const prelaunch = isPrelaunch();
@@ -26,6 +29,7 @@ export function Hero() {
               <>
                 <Link
                   href="/sign-up"
+                  onClick={() => track("signup_started", { source: "hero" })}
                   className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent text-white font-ui text-sm font-medium hover:opacity-90 transition-opacity min-h-[48px]"
                 >
                   Start unlooping — 7 days free
@@ -183,6 +187,25 @@ export function Footer() {
           <Link href="/privacy" className="hover:text-accent-selected transition-colors">
             Privacy
           </Link>
+          <Link href="/terms" className="hover:text-accent-selected transition-colors">
+            Terms
+          </Link>
+          <a
+            href="https://www.tiktok.com/@unloopapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent-selected transition-colors"
+          >
+            TikTok
+          </a>
+          <a
+            href="https://www.instagram.com/unloopapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent-selected transition-colors"
+          >
+            Instagram
+          </a>
           <a href="mailto:hello@unloop.app" className="hover:text-accent-selected transition-colors">
             Contact
           </a>

@@ -41,6 +41,15 @@ export default function PrivacyPage() {
             Under UK GDPR, you can export all your data or delete your account entirely from settings. Deletion is permanent and removes your loops, events, transcripts, and account.
           </p>
 
+          <h2 className="font-heading text-lg text-ink pt-4">Crisis-flagged transcripts</h2>
+          <p>
+            If our safety checks flag content relating to self-harm or harm to others, we retain the
+            transcript for up to 30 days before permanently deleting it. This retention supports
+            safety review and is handled as special-category health data under UK GDPR. We do not use
+            crisis-flagged transcripts for AI training or product improvement. See our terms for how
+            Unloop relates to professional support.
+          </p>
+
           <h2 className="font-heading text-lg text-ink pt-4">Contact</h2>
           <p>
             Questions about your data: <a href="mailto:hello@unloop.app" className="text-accent-selected hover:text-accent-hover">hello@unloop.app</a>

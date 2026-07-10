@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { foundingMemberCounter, users } from "@/lib/db/schema";
 import { getStripe, STRIPE_PRICES } from "@/lib/stripe/config";
+import { trackServer } from "@/lib/analytics-server";
 
 export async function POST(request: Request) {
   const stripe = getStripe();
@@ -57,13 +58,18 @@ export async function POST(request: Request) {
           });
       } else if (session.subscription) {
         const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+        const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
         await db
           .update(users)
           .set({
             subscriptionStatus: sub.status === "trialing" ? "trialing" : "active",
             trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+            pastDueSince: null,
           })
           .where(eq(users.id, userId));
+        if (user) {
+          await trackServer("trial_started", user.clerkId, { plan: plan ?? "annual" });
+        }
       }
       break;
     }
@@ -79,6 +85,9 @@ export async function POST(request: Request) {
         unpaid: "past_due",
       };
       const status = statusMap[subscription.status] ?? "canceled";
+      const user = await db.query.users.findFirst({
+        where: eq(users.stripeCustomerId, customerId),
+      });
 
       await db
         .update(users)
@@ -87,26 +96,48 @@ export async function POST(request: Request) {
           trialEndsAt: subscription.trial_end
             ? new Date(subscription.trial_end * 1000)
             : null,
+          pastDueSince:
+            status === "past_due"
+              ? user?.pastDueSince ?? new Date()
+              : null,
         })
         .where(eq(users.stripeCustomerId, customerId));
+
+      if (user && status === "active" && user.subscriptionStatus !== "active") {
+        await trackServer("subscription_converted", user.clerkId, {
+          plan: subscription.metadata?.plan,
+        });
+      }
       break;
     }
 
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
+      const user = await db.query.users.findFirst({
+        where: eq(users.stripeCustomerId, subscription.customer as string),
+      });
       await db
         .update(users)
-        .set({ subscriptionStatus: "canceled" })
+        .set({ subscriptionStatus: "canceled", pastDueSince: null })
         .where(eq(users.stripeCustomerId, subscription.customer as string));
+      if (user) {
+        await trackServer("subscription_canceled", user.clerkId);
+      }
       break;
     }
 
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       if (invoice.customer) {
+        const user = await db.query.users.findFirst({
+          where: eq(users.stripeCustomerId, invoice.customer as string),
+        });
         await db
           .update(users)
-          .set({ subscriptionStatus: "past_due" })
+          .set({
+            subscriptionStatus: "past_due",
+            pastDueSince: user?.pastDueSince ?? new Date(),
+          })
           .where(eq(users.stripeCustomerId, invoice.customer as string));
       }
       break;

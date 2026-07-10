@@ -4,12 +4,12 @@
 
 :root {
   --paper: #faf7f2;
-  --ink: #2e2a26;
+  --ink: #2b2724;
   --ink-soft: #4a4038;
   --ink-muted: #7c6f62;
   --ink-faint: #9a8e80;
   --ink-placeholder: #a99c8e;
-  --accent: #c1633f;
+  --accent: #c4633e;
   --accent-hover: #8a3e22;
   --accent-selected: #b15a38;
   --accent-soft: #e8c4b0;
@@ -20,8 +20,8 @@
   --sheet: #fcfaf6;
   --border: #e3d9cd;
   --border-soft: #eadfd2;
-  --font-heading: "Spectral", Georgia, serif;
-  --font-ui: "Hanken Grotesk", system-ui, sans-serif;
+  --font-heading: "Fraunces", Georgia, serif;
+  --font-ui: "Inter", system-ui, sans-serif;
 }
 
 .dark {
@@ -58,6 +58,10 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

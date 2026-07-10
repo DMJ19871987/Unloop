@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics";
 import { LoopCircle } from "@/components/field/LoopCircle";
 import { WeeklySummaryCard } from "./WeeklySummaryCard";
 import type { LoopDTO } from "@/lib/types/loop";
@@ -60,7 +61,8 @@ export function RecordView({
         </div>
         <Link
           href="/field"
-          className="inline-flex rounded-full border border-border px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[36px] items-center"
+          onClick={() => track("field_toggle_used", { to: "field" })}
+          className="inline-flex rounded-full border border-border px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[48px] items-center"
         >
           <span>Occupying you</span>
           <span className="mx-1.5">/</span>
@@ -108,7 +110,7 @@ export function RecordView({
 
         {weeklySummaries.length > 0 && (
           <div className="mt-12 space-y-4 max-w-md mx-auto">
-            <h2 className="font-ui text-[11px] uppercase tracking-[2.5px] text-[#B4A79A] text-center">
+            <h2 className="font-ui text-[11px] uppercase tracking-[2.5px] text-ink-faint text-center">
               Weekly reflections
             </h2>
             {weeklySummaries.map((summary) => (

@@ -19,16 +19,16 @@ function buildClerkMiddleware() {
     "/",
     "/pricing",
     "/privacy",
+    "/terms",
     "/sign-in(.*)",
     "/sign-up(.*)",
     "/api/stripe/webhook",
-  "/api/waitlist",
-  "/api/cron/weekly-summary",
-  "/api/cron/resurface",
-  "/api/cron/checkin",
-  "/api/icon",
-  "/dev(.*)",
-]);
+    "/api/waitlist",
+    "/api/cron(.*)",
+    "/api/icon",
+    "/api/founding-slots",
+    "/dev(.*)",
+  ]);
 
   return clerkMiddleware(async (auth: { protect: () => Promise<void> }, request: NextRequest) => {
     if (!isPublicRoute(request)) {

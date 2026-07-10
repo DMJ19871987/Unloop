@@ -83,9 +83,9 @@ function loopPriority(state: LoopState, weight: number): number {
   const order: Record<LoopState, number> = {
     open_attention: 0,
     next_step_known: 1,
-    parked: 2,
-    released: 3,
-    done: 4,
+    parked: 4,
+    released: 5,
+    done: 6,
   };
   return order[state] * 10 - weight;
 }

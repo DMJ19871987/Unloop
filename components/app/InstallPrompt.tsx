@@ -5,7 +5,7 @@ import { platform } from "@/lib/platform";
 
 interface InstallPromptProps {
   show: boolean;
-  onDismiss: () => void;
+  onDismiss: () => void | Promise<void>;
 }
 
 export function InstallPrompt({ show, onDismiss }: InstallPromptProps) {

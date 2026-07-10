@@ -38,6 +38,9 @@ export const users = pgTable("users", {
   onboardingComplete: boolean("onboarding_complete").default(false),
   sessionsCompleted: integer("sessions_completed").default(0),
   pushSubscription: jsonb("push_subscription"),
+  pastDueSince: timestamp("past_due_since"),
+  lastCheckinSentAt: timestamp("last_checkin_sent_at"),
+  trialReminderSentAt: timestamp("trial_reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

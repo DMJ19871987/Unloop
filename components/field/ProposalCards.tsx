@@ -30,13 +30,13 @@ export function ProposalCards({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              className="pointer-events-auto rounded-2xl border border-ink-faint/20 bg-paper/95 backdrop-blur-sm shadow-lg p-4 max-w-md mx-auto w-full"
+              className="pointer-events-auto rounded-2xl border border-ink-faint/20 bg-paper shadow-lg p-4 max-w-md mx-auto w-full"
             >
               <p className="font-ui text-sm text-ink font-medium mb-1">
                 {proposal.summary}
               </p>
               {proposal.evidence && (
-                <p className="font-body text-sm text-ink-faint italic mb-3">
+                <p className="font-heading text-sm text-ink-faint italic mb-3">
                   &ldquo;{proposal.evidence}&rdquo;
                 </p>
               )}

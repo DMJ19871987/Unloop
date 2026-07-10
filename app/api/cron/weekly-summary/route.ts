@@ -5,7 +5,7 @@ import { users, loopEvents, loops, weeklySummaries } from "@/lib/db/schema";
 import { generateWeeklySummary } from "@/lib/ai/generate-weekly";
 import {
   computeWeekStats,
-  getWeekStart,
+  getWeekStartInTz,
   isUserDueForWeeklySummary,
 } from "@/lib/loops/record";
 import { sendWeeklySummaryEmail } from "@/lib/email/weekly";
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const tz = user.timezone ?? "Europe/London";
     if (!isUserDueForWeeklySummary(tz, 18, 0)) continue;
 
-    const weekStart = getWeekStart();
+    const weekStart = getWeekStartInTz(tz);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
 

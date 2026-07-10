@@ -8,13 +8,14 @@ export function isMockTranscribeEnabled(): boolean {
 export async function transcribeAudio(
   buffer: Buffer,
   mimeType: string,
-  userId: string | null
+  userId: string | null,
+  operation: "transcribe" | "next_step_stt" = "transcribe"
 ): Promise<{ transcript: string; durationSeconds: number }> {
   if (isMockTranscribeEnabled()) {
     await logAiUsage({
       userId,
       provider: "openai",
-      operation: "transcribe",
+      operation,
       audioSeconds: 30,
       estCostUsd: 0,
     });
@@ -36,16 +37,19 @@ export async function transcribeAudio(
     temperature: 0,
   });
 
+  const rawDuration = Math.ceil(buffer.length / 16000);
+  const durationSeconds = Math.min(330, Math.max(1, rawDuration));
+
   await logAiUsage({
     userId,
     provider: "openai",
-    operation: "transcribe",
-    audioSeconds: Math.ceil(buffer.length / 16000),
+    operation,
+    audioSeconds: durationSeconds,
     estCostUsd: 0.006,
   });
 
   return {
     transcript: result.text,
-    durationSeconds: Math.ceil(buffer.length / 16000),
+    durationSeconds,
   };
 }

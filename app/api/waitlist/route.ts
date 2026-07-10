@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import { waitlist } from "@/lib/db/schema";
+import { trackServer } from "@/lib/analytics-server";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -24,6 +25,8 @@ export async function POST(request: Request) {
       .insert(waitlist)
       .values({ email: email.toLowerCase() })
       .onConflictDoNothing();
+
+    await trackServer("waitlist_signup", email.toLowerCase(), { email: email.toLowerCase() });
 
     return NextResponse.json({ success: true });
   } catch (error) {

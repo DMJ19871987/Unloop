@@ -4,30 +4,46 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { platform } from "@/lib/platform";
+import { track } from "@/lib/analytics";
 import {
   blobToBase64,
   enqueueOffload,
   processQueue,
+  isQueueError,
 } from "@/lib/offload/queue";
 import { mergePendingProposals } from "@/lib/offload/proposal-storage";
 import { RecordButton } from "./RecordButton";
 import { Waveform } from "./Waveform";
 
-type CapturePhase = "idle" | "listening" | "processing" | "typing" | "offline";
+type CapturePhase = "idle" | "listening" | "gathering" | "processing" | "typing" | "offline";
 
 export function CaptureScreen() {
   const router = useRouter();
   const recorderRef = useRef<ReturnType<typeof platform.createAudioRecorder>>(null);
+  const offloadStartRef = useRef<number | null>(null);
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const [levels, setLevels] = useState<number[]>([]);
   const [statusText, setStatusText] = useState("Empty your head.");
   const [typedText, setTypedText] = useState("");
   const [micDenied, setMicDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasQueuedAudio, setHasQueuedAudio] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [writeBlocked, setWriteBlocked] = useState(false);
+  const [retryPayload, setRetryPayload] = useState<{
+    transcript: string;
+    inputMode: "voice" | "text";
+    durationSeconds?: number;
+  } | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
+  const stopAndProcessRef = useRef<() => Promise<void>>(async () => {});
 
   const runExtract = useCallback(
-    async (transcript: string, inputMode: "voice" | "text", durationSeconds?: number) => {
+    async (
+      transcript: string,
+      inputMode: "voice" | "text",
+      durationSeconds?: number
+    ) => {
       setPhase("processing");
       setStatusText("Finding your loops…");
 
@@ -45,27 +61,50 @@ export function CaptureScreen() {
         return;
       }
 
-      const res = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, inputMode, durationSeconds }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong.");
+      let res: Response;
+      let data;
+      try {
+        res = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript, inputMode, durationSeconds }),
+        });
+        data = await res.json();
+      } catch {
+        setError("Something went wrong. Your words are safe — try again.");
+        setRetryPayload({ transcript, inputMode, durationSeconds });
         setPhase("idle");
         setStatusText("Empty your head.");
         return;
       }
+
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        setRetryPayload({ transcript, inputMode, durationSeconds });
+        setPhase("idle");
+        setStatusText("Empty your head.");
+        return;
+      }
+
+      setRetryPayload(null);
+
+      const elapsed = offloadStartRef.current
+        ? Math.round((Date.now() - offloadStartRef.current) / 1000)
+        : undefined;
+      track("offload_completed", {
+        loops_new: data.stats?.new ?? 0,
+        loops_matched: data.stats?.matched ?? 0,
+        duration: elapsed,
+        mode: inputMode,
+      });
+      offloadStartRef.current = null;
 
       if (data.crisis) {
         router.push("/field?crisis=support");
         return;
       }
 
-      if (data.stats?.total === 0 && data.stats?.new === 0) {
+      if ((data.stats?.new ?? 0) === 0 && (data.stats?.matched ?? 0) === 0) {
         router.push("/field?clear=1");
         return;
       }
@@ -74,11 +113,17 @@ export function CaptureScreen() {
         mergePendingProposals(data.proposals);
       }
 
+      const createdIds = (data.created ?? data.newLoops ?? [])
+        .map((l: { id: string }) => l.id)
+        .filter(Boolean);
+
       const params = new URLSearchParams({
         session: data.sessionId,
-        new: String(data.stats.new),
         matched: String(data.stats.matched),
       });
+      if (createdIds.length > 0) {
+        params.set("new", createdIds.join(","));
+      }
       router.push(`/field?${params.toString()}`);
     },
     [router]
@@ -106,12 +151,19 @@ export function CaptureScreen() {
       }
 
       const formData = new FormData();
-      formData.append("audio", blob, "recording.webm");
+      const ext = mimeType.includes("mp4")
+        ? "mp4"
+        : mimeType.includes("wav")
+          ? "wav"
+          : "webm";
+      formData.append("audio", blob, `recording.${ext}`);
 
       const transcribeRes = await fetch("/api/transcribe", {
         method: "POST",
         body: formData,
       });
+
+      const transcribeData = await transcribeRes.json();
 
       if (!transcribeRes.ok) {
         const audioBase64 = await blobToBase64(blob);
@@ -124,37 +176,144 @@ export function CaptureScreen() {
           createdAt: Date.now(),
         });
         setError("Transcription failed. Your recording is held locally.");
+        setHasQueuedAudio(true);
         setPhase("idle");
         setStatusText("Empty your head.");
         return;
       }
 
-      const { transcript, durationSeconds: dur } = await transcribeRes.json();
+      const { transcript, durationSeconds: dur } = transcribeData;
+      if (!transcript?.trim()) {
+        setError("We couldn't pick up any words. Try speaking a little longer.");
+        setPhase("idle");
+        setStatusText("Empty your head.");
+        return;
+      }
       await runExtract(transcript, "voice", dur ?? durationSeconds);
     },
     [runExtract, router]
   );
 
+  const stopAndProcess = useCallback(async () => {
+    if (phase !== "listening") return;
+    try {
+      const audio = await recorderRef.current?.stop();
+      unsubRef.current?.();
+      unsubRef.current = null;
+      if (audio) {
+        setPhase("gathering");
+        setStatusText("Processing…");
+        await new Promise((r) => setTimeout(r, 600));
+        await processVoice(audio.blob, audio.mimeType, audio.durationSeconds);
+      }
+    } catch {
+      setPhase("idle");
+      setStatusText("Empty your head.");
+    }
+  }, [phase, processVoice]);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.subscriptionAccess && data.subscriptionAccess !== "full") {
+          setWriteBlocked(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    stopAndProcessRef.current = stopAndProcess;
+  }, [stopAndProcess]);
+
+  const retryQueue = useCallback(async () => {
+    setRetrying(true);
+    setError(null);
+    const result = await processQueue();
+    setRetrying(false);
+
+    if (isQueueError(result)) {
+      setError(result.error);
+      return;
+    }
+
+    if (result?.crisis) {
+      router.push("/field?crisis=support");
+      return;
+    }
+
+    if (result?.sessionId) {
+      setHasQueuedAudio(false);
+      if (result.proposals?.length) {
+        mergePendingProposals(result.proposals);
+      }
+      const params = new URLSearchParams({
+        session: result.sessionId,
+        queued: "1",
+      });
+      if (result.createdIds?.length) {
+        params.set("new", result.createdIds.join(","));
+      }
+      if (result.stats?.matched) {
+        params.set("matched", String(result.stats.matched));
+      }
+      router.push(`/field?${params.toString()}`);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const tryQueue = async () => {
+      if (platform.isOnline()) {
+        const result = await processQueue();
+        if (isQueueError(result)) {
+          setError(result.error);
+          setHasQueuedAudio(true);
+          return;
+        }
+        if (result?.crisis) {
+          router.push("/field?crisis=support");
+          return;
+        }
+        if (result?.sessionId) {
+          setHasQueuedAudio(false);
+          if (result.proposals?.length) {
+            mergePendingProposals(result.proposals);
+          }
+          const params = new URLSearchParams({
+            session: result.sessionId,
+            queued: "1",
+          });
+          if (result.createdIds?.length) {
+            params.set("new", result.createdIds.join(","));
+          }
+          if (result.stats?.matched) {
+            params.set("matched", String(result.stats.matched));
+          }
+          router.push(`/field?${params.toString()}`);
+        }
+      }
+    };
+    tryQueue();
+
+    return platform.onOnline(() => tryQueue());
+  }, [router]);
+
   const handleRecordTap = async () => {
     setError(null);
 
     if (phase === "listening") {
-      try {
-        const audio = await recorderRef.current?.stop();
-        unsubRef.current?.();
-        unsubRef.current = null;
-        if (audio) {
-          await processVoice(audio.blob, audio.mimeType, audio.durationSeconds);
-        }
-      } catch {
-        setPhase("idle");
-        setStatusText("Empty your head.");
-      }
+      await stopAndProcess();
       return;
     }
 
     try {
-      const recorder = platform.createAudioRecorder(300000);
+      const recorder = platform.createAudioRecorder(300000, {
+        onWarning: () => setStatusText("30 seconds left."),
+        onMaxReached: () => {
+          void stopAndProcessRef.current();
+        },
+      });
       if (!recorder) {
         setMicDenied(true);
         return;
@@ -163,6 +322,8 @@ export function CaptureScreen() {
       recorderRef.current = recorder;
       await recorder.start();
       unsubRef.current = recorder.subscribeLevels(setLevels);
+      offloadStartRef.current = Date.now();
+      track("offload_started", { mode: "voice" });
       setPhase("listening");
       setStatusText("Listening…");
     } catch {
@@ -170,26 +331,12 @@ export function CaptureScreen() {
     }
   };
 
-  useEffect(() => {
-    const tryQueue = async () => {
-      if (platform.isOnline()) {
-        const result = await processQueue();
-        if (result?.crisis) {
-          router.push("/field?crisis=support");
-          return;
-        }
-        if (result?.sessionId) {
-          if (result.proposals?.length) {
-            mergePendingProposals(result.proposals);
-          }
-          router.push(`/field?session=${result.sessionId}&queued=1`);
-        }
-      }
-    };
-    tryQueue();
-
-    return platform.onOnline(() => tryQueue());
-  }, [router]);
+  const handleTextExtract = () => {
+    if (writeBlocked) return;
+    offloadStartRef.current = Date.now();
+    track("offload_started", { mode: "text" });
+    runExtract(typedText.trim(), "text");
+  };
 
   return (
     <div className="min-h-[85vh] flex flex-col bg-paper">
@@ -213,11 +360,17 @@ export function CaptureScreen() {
             ) : (
               <RecordButton
                 isRecording={phase === "listening"}
-                onTap={handleRecordTap}
+                onTap={writeBlocked ? () => {} : handleRecordTap}
               />
             )}
 
-            {phase === "listening" && <Waveform levels={levels} active />}
+            {(phase === "listening" || phase === "gathering") && (
+              <Waveform
+                levels={levels}
+                active={phase === "listening"}
+                gathering={phase === "gathering"}
+              />
+            )}
 
             <p className="font-ui text-sm text-ink-faint tracking-wide">{statusText}</p>
 
@@ -228,10 +381,39 @@ export function CaptureScreen() {
             )}
 
             {error && (
-              <p className="font-ui text-sm text-accent text-center max-w-xs">{error}</p>
+              <div className="flex flex-col items-center gap-2 max-w-xs">
+                <p className="font-ui text-sm text-accent text-center">{error}</p>
+                {(hasQueuedAudio || retryPayload) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (hasQueuedAudio) {
+                        void retryQueue();
+                      } else if (retryPayload) {
+                        setError(null);
+                        void runExtract(
+                          retryPayload.transcript,
+                          retryPayload.inputMode,
+                          retryPayload.durationSeconds
+                        );
+                      }
+                    }}
+                    disabled={retrying}
+                    className="font-ui text-sm text-ink-soft hover:text-accent-selected min-h-[48px] disabled:opacity-40"
+                  >
+                    {retrying ? "Trying again…" : "Try again"}
+                  </button>
+                )}
+              </div>
             )}
 
-            {phase === "idle" && (
+            {writeBlocked && (
+              <p className="font-ui text-sm text-ink-muted text-center max-w-xs">
+                Your subscription has lapsed. Your loops are safe — renew to keep offloading.
+              </p>
+            )}
+
+            {phase === "idle" && !writeBlocked && (
               <button
                 type="button"
                 onClick={() => setPhase("typing")}
@@ -264,8 +446,8 @@ export function CaptureScreen() {
               </button>
               <button
                 type="button"
-                disabled={!typedText.trim()}
-                onClick={() => runExtract(typedText.trim(), "text")}
+                disabled={!typedText.trim() || writeBlocked}
+                onClick={handleTextExtract}
                 className="px-5 py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px] disabled:opacity-40"
               >
                 Find loops

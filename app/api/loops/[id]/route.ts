@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { getOrCreateUser } from "@/lib/auth/user";
+import { requireWriteUser, isWriteBlocked } from "@/lib/auth/require-access";
 import { getDb } from "@/lib/db/client";
-import { loops } from "@/lib/db/schema";
+import { loops, loopEvents } from "@/lib/db/schema";
 import { transitionLoop, toLoopDTO } from "@/lib/loops/transitions";
+import { canTransition } from "@/lib/loops/state";
 import type { ClosureAction } from "@/lib/types/loop";
 
-const bodySchema = z.union([
-  z.object({
+const actionSchema = z
+  .object({
     action: z.enum([
       "done",
       "next_step_known",
@@ -16,12 +18,27 @@ const bodySchema = z.union([
       "released",
       "still_on_mind",
     ]),
-    nextStep: z.string().optional(),
+    nextStep: z.string().trim().min(1).optional(),
     resurfaceAfter: z.string().datetime().optional(),
     note: z.string().optional(),
-  }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.action === "next_step_known" && !data.nextStep) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Next step is required.",
+        path: ["nextStep"],
+      });
+    }
+  });
+
+const bodySchema = z.union([
+  actionSchema,
   z.object({
     label: z.string().min(1).max(80),
+  }),
+  z.object({
+    nextStep: z.string().trim().min(1),
   }),
 ]);
 
@@ -30,10 +47,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const user = await getOrCreateUser();
+  const writeUser = await requireWriteUser();
+  if (isWriteBlocked(writeUser)) return writeUser;
+  const user = writeUser;
   const db = getDb();
 
-  if (!user || !db) {
+  if (!db) {
     return NextResponse.json({ error: "Unavailable." }, { status: 503 });
   }
 
@@ -51,6 +70,49 @@ export async function PATCH(
       if (!updated) {
         return NextResponse.json({ error: "Loop not found." }, { status: 404 });
       }
+      return NextResponse.json({ loop: toLoopDTO(updated) });
+    }
+
+    if ("nextStep" in data && !("action" in data)) {
+      const existing = await db.query.loops.findFirst({
+        where: and(eq(loops.id, id), eq(loops.userId, user.id)),
+      });
+
+      if (!existing) {
+        return NextResponse.json({ error: "Loop not found." }, { status: 404 });
+      }
+
+      const toState =
+        existing.state === "open_attention" || existing.state === "parked"
+          ? "next_step_known"
+          : existing.state;
+
+      if (!canTransition(existing.state, toState)) {
+        throw new Error(`Cannot transition from ${existing.state} to ${toState}`);
+      }
+
+      const [updated] = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(loops)
+          .set({
+            nextStep: data.nextStep,
+            state: toState,
+            updatedAt: new Date(),
+          })
+          .where(eq(loops.id, id))
+          .returning();
+
+        await tx.insert(loopEvents).values({
+          loopId: id,
+          userId: user.id,
+          fromState: existing.state,
+          toState,
+          note: data.nextStep,
+        });
+
+        return [row];
+      });
+
       return NextResponse.json({ loop: toLoopDTO(updated) });
     }
 
@@ -83,10 +145,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const user = await getOrCreateUser();
+  const writeUser = await requireWriteUser();
+  if (isWriteBlocked(writeUser)) return writeUser;
+  const user = writeUser;
   const db = getDb();
 
-  if (!user || !db) {
+  if (!db) {
     return NextResponse.json({ error: "Unavailable." }, { status: 503 });
   }
 

@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { LoopState } from "@/lib/loops/state";
 import { arcCompleteness, loopVisualStyle } from "@/lib/loops/state";
-import { buildLoopArcPath } from "@/lib/loops/arc-path";
+import { buildLoopArcPath, arcStrokeLayers } from "@/lib/loops/arc-path";
 
 import type { LabelPosition } from "@/lib/loops/layout-types";
 
@@ -24,6 +24,7 @@ export interface LoopCircleProps {
   labelColor?: string;
   labelOpacity?: number;
   animateArc?: number;
+  closingMode?: "done" | "released";
   className?: string;
   style?: React.CSSProperties;
   drift?: boolean;
@@ -49,6 +50,7 @@ export function LoopCircle({
   labelColor,
   labelOpacity = 0.85,
   animateArc,
+  closingMode,
   className = "",
   style,
   drift = false,
@@ -68,6 +70,11 @@ export function LoopCircle({
   const opacity = opacityOverride ?? visual.opacity;
 
   const [displayArc, setDisplayArc] = useState(arc);
+  const [displayStroke, setDisplayStroke] = useState(stroke);
+
+  useEffect(() => {
+    setDisplayStroke(stroke);
+  }, [stroke]);
 
   useEffect(() => {
     if (animateArc === undefined) {
@@ -76,6 +83,7 @@ export function LoopCircle({
     }
     const start = arc;
     const end = animateArc;
+    const startStroke = stroke;
     const t0 = performance.now();
     const duration = 900;
     let frame: number;
@@ -83,15 +91,27 @@ export function LoopCircle({
       const t = Math.min(1, (now - t0) / duration);
       const eased = 1 - (1 - t) ** 3;
       setDisplayArc(start + (end - start) * eased);
+      if (closingMode === "released") {
+        setDisplayStroke(
+          t < 1
+            ? `color-mix(in srgb, ${startStroke} ${Math.round((1 - t) * 100)}%, var(--closed))`
+            : "var(--closed)"
+        );
+      }
       if (t < 1) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [animateArc, arc]);
+  }, [animateArc, arc, stroke, closingMode]);
 
   const path = useMemo(
     () => buildLoopArcPath(50, 50, VIEW_R, displayArc, visualSeed),
     [displayArc, visualSeed]
+  );
+
+  const strokeLayers = useMemo(
+    () => arcStrokeLayers(strokeWidth, visualSeed),
+    [strokeWidth, visualSeed]
   );
 
   const labelNode =
@@ -127,15 +147,18 @@ export function LoopCircle({
         className="block shrink-0 overflow-visible"
         aria-hidden={!label}
       >
-        <path
-          d={path}
-          fill="none"
-          stroke={stroke}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={opacity}
-        />
+        {strokeLayers.map((layer, i) => (
+          <path
+            key={i}
+            d={path}
+            fill="none"
+            stroke={closingMode === "released" ? displayStroke : stroke}
+            strokeWidth={layer.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={opacity * layer.opacity}
+          />
+        ))}
       </svg>
       {labelNode}
     </div>

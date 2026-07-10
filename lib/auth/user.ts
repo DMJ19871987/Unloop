@@ -46,6 +46,8 @@ export async function getOrCreateUser() {
 
   if (existing) return existing;
 
+  // trialEndsAt is deliberately NOT set here — the Stripe webhook sets it when
+  // checkout completes, and subscription access keys off its presence.
   const [created] = await db
     .insert(users)
     .values({

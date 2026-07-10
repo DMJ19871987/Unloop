@@ -8,7 +8,7 @@ export type LoopState =
 const ALLOWED_TRANSITIONS: Record<LoopState, LoopState[]> = {
   open_attention: ["next_step_known", "parked", "released", "done"],
   next_step_known: ["done", "released", "parked", "open_attention"],
-  parked: ["open_attention", "released", "done"],
+  parked: ["open_attention", "next_step_known", "released", "done"],
   released: [],
   done: [],
 };

@@ -12,6 +12,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
   }
 
+  const { getSubscriptionAccess } = await import("@/lib/auth/subscription");
+
   return NextResponse.json({
     email: user.email,
     timezone: user.timezone,
@@ -21,6 +23,9 @@ export async function GET() {
     notificationFrequency: user.notificationFrequency,
     keepTranscripts: user.keepTranscripts,
     subscriptionStatus: user.subscriptionStatus,
+    subscriptionAccess: getSubscriptionAccess(user),
+    stripeCustomerId: user.stripeCustomerId,
+    trialEndsAt: user.trialEndsAt,
     sessionsCompleted: user.sessionsCompleted,
     onboardingComplete: user.onboardingComplete,
   });
@@ -76,6 +81,10 @@ export async function DELETE(request: Request) {
       // Continue deletion even if Stripe fails
     }
   }
+
+  const { deletePostHogPerson, trackServer } = await import("@/lib/analytics-server");
+  await trackServer("account_deleted", user.clerkId);
+  await deletePostHogPerson(user.clerkId);
 
   await db.delete(users).where(eq(users.id, user.id));
 

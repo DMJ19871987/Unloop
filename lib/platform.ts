@@ -17,8 +17,16 @@ export interface AudioRecorder {
   readonly isRecording: boolean;
 }
 
+export interface AudioRecorderCallbacks {
+  onWarning?: () => void;
+  onMaxReached?: () => void;
+}
+
 export interface PlatformAPI {
-  createAudioRecorder(maxDurationMs?: number): AudioRecorder | null;
+  createAudioRecorder(
+    maxDurationMs?: number,
+    callbacks?: AudioRecorderCallbacks
+  ): AudioRecorder | null;
   vibrate(pattern?: number | number[]): void;
   notify(title: string, options?: NotificationOptions): Promise<void>;
   storeLocal<T>(key: string, value: T): Promise<void>;
@@ -170,10 +178,17 @@ class PwaAudioRecorder implements AudioRecorder {
 }
 
 export const platform: PlatformAPI = {
-  createAudioRecorder(maxDurationMs = 300000): AudioRecorder | null {
+  createAudioRecorder(
+    maxDurationMs = 300000,
+    callbacks?: AudioRecorderCallbacks
+  ): AudioRecorder | null {
     const nav = getNavigator();
     if (!nav?.mediaDevices?.getUserMedia) return null;
-    return new PwaAudioRecorder(maxDurationMs);
+    return new PwaAudioRecorder(
+      maxDurationMs,
+      callbacks?.onMaxReached,
+      callbacks?.onWarning
+    );
   },
 
   getPreferredAudioMime(): AudioMimeType {

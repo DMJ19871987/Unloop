@@ -1,6 +1,7 @@
 "use client";
 
 import { platform } from "@/lib/platform";
+import { track } from "@/lib/analytics";
 
 interface CheckinOnboardingProps {
   onYes: () => void;
@@ -34,6 +35,7 @@ export function CheckinOnboarding({ onYes, onNo }: CheckinOnboardingProps) {
                 });
               }
               onYes();
+              track("notification_optin", { type: "checkin_onboarding" });
             }}
             className="w-full py-3 rounded-full bg-accent text-white font-ui text-sm min-h-[48px]"
           >

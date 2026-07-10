@@ -17,6 +17,10 @@ export async function sendCheckinNotification(
 ) {
   if (!configureWebPush()) return false;
 
+  if (frequency < 1 && Math.random() > frequency) {
+    return false;
+  }
+
   const payload = JSON.stringify({
     title: "Evening. Anything still swirling?",
     body: "A gentle moment to empty your head, if you need it.",

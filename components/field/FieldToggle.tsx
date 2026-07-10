@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { track } from "@/lib/analytics";
 
 interface FieldToggleProps {
   view: "occupying" | "released";
 }
 
 export function FieldToggle({ view }: FieldToggleProps) {
+  const targetView = view === "occupying" ? "released" : "occupying";
+
   return (
     <Link
       href={view === "occupying" ? "/record" : "/field"}
-      className="inline-flex rounded-full border border-border px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[36px] items-center"
+      onClick={() => track("field_toggle_used", { view: targetView })}
+      className="inline-flex rounded-full border border-border px-3 py-1.5 font-ui text-xs text-ink-faint min-h-[48px] items-center"
     >
       <span className={view === "occupying" ? "text-accent-selected font-medium" : ""}>
         Occupying you

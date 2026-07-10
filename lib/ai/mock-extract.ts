@@ -15,6 +15,10 @@ export const MOCK_TRANSCRIPT_CASE_3 =
 export const MOCK_TRANSCRIPT_CRISIS =
   "I've been thinking about hurting myself and I don't know what to do";
 
+/** Clear-head fixture — zero new loops, zero matches → clear-head interstitial. */
+export const MOCK_TRANSCRIPT_CLEAR =
+  "today was actually fine";
+
 function normalize(text: string): string {
   return text.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -57,6 +61,16 @@ export function mockExtractLoops(
   }
 
   const norm = normalize(transcript);
+
+  if (norm === normalize(MOCK_TRANSCRIPT_CLEAR)) {
+    return {
+      new_loops: [],
+      matched_loops: [],
+      merge_suggestions: [],
+      flag: null,
+    };
+  }
+
   const jobLoop = findJobLoop(existingLoops);
 
   if (jobLoop && norm === normalize(MOCK_TRANSCRIPT_CASE_1)) {

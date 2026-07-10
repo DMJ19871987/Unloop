@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrCreateUser } from "@/lib/auth/user";
+import { requireWriteUser, isWriteBlocked } from "@/lib/auth/require-access";
 import { getDb } from "@/lib/db/client";
 import { applyLoopChange, applyMerge } from "@/lib/ai/apply-changes";
 import { toLoopDTO } from "@/lib/loops/transitions";
@@ -28,10 +29,12 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const user = await getOrCreateUser();
+  const writeUser = await requireWriteUser();
+  if (isWriteBlocked(writeUser)) return writeUser;
+  const user = writeUser;
   const db = getDb();
 
-  if (!user || !db) {
+  if (!db) {
     return NextResponse.json({ error: "Unavailable." }, { status: 503 });
   }
 

@@ -164,3 +164,33 @@ export function getWeekStart(date = new Date()): Date {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+
+/**
+ * Week start (Monday 00:00) computed in the user's timezone, returned as a
+ * UTC Date. Keeps weekly-summary dedupe stable regardless of server timezone.
+ */
+export function getWeekStartInTz(timezone: string, now = new Date()): Date {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    });
+    const parts = fmt.formatToParts(now);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const dayMap: Record<string, number> = {
+      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+    };
+    const day = dayMap[get("weekday")] ?? 0;
+    const daysBackToMonday = day === 0 ? 6 : day - 1;
+    const local = new Date(
+      Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day")))
+    );
+    local.setUTCDate(local.getUTCDate() - daysBackToMonday);
+    return local;
+  } catch {
+    return getWeekStart(now);
+  }
+}

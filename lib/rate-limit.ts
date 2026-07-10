@@ -5,9 +5,11 @@ import { eq, and, gte, inArray } from "drizzle-orm";
 const SOFT_LIMIT = 20;
 const HARD_LIMIT = 40;
 
+const OFFLOAD_OPERATIONS = ["transcribe", "extract"] as const;
+
 export async function checkRateLimit(
   userId: string,
-  operations: ("transcribe" | "extract")[]
+  operations: readonly ("transcribe" | "extract")[] = OFFLOAD_OPERATIONS
 ): Promise<{ allowed: boolean; soft: boolean; message?: string }> {
   const db = getDb();
   if (!db) return { allowed: true, soft: false };
@@ -18,7 +20,7 @@ export async function checkRateLimit(
   const logs = await db.query.aiUsageLog.findMany({
     where: and(
       eq(aiUsageLog.userId, userId),
-      inArray(aiUsageLog.operation, operations),
+      inArray(aiUsageLog.operation, [...operations]),
       gte(aiUsageLog.createdAt, dayAgo)
     ),
   });

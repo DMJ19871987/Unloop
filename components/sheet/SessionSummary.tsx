@@ -61,7 +61,7 @@ export function SessionSummary({ stats, onDismiss }: SessionSummaryProps) {
 
       <div className="flex gap-6 mb-10">
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-[2.5px] text-[#B4A79A] mb-2">Before</p>
+          <p className="text-[11px] uppercase tracking-[2.5px] text-ink-faint mb-2">Before</p>
           <div className="relative w-32 h-28">
             {[0, 1, 2, 3, 4].map((i) => (
               <div
@@ -82,7 +82,7 @@ export function SessionSummary({ stats, onDismiss }: SessionSummaryProps) {
         </div>
 
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-[2.5px] text-[#B4A79A] mb-2">After</p>
+          <p className="text-[11px] uppercase tracking-[2.5px] text-ink-faint mb-2">After</p>
           <div className="relative w-36 h-32">
             <div className="absolute left-4 top-2">
               <LoopCircle state="open_attention" weight={4} visualSeed={1} size={56} showLabel={false} />
@@ -97,7 +97,7 @@ export function SessionSummary({ stats, onDismiss }: SessionSummaryProps) {
         </div>
       </div>
 
-      <p className="font-heading italic text-[17px] text-[#5C5248] text-center leading-relaxed max-w-sm">
+      <p className="font-heading italic text-[17px] text-ink-soft text-center leading-relaxed max-w-sm">
         {closingLine}
       </p>
     </motion.div>

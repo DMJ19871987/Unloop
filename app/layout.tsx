@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Spectral, Hanken_Grotesk } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ServiceWorkerRegister } from "@/components/app/ServiceWorkerRegister";
 import "./globals.css";
 
-const spectral = Spectral({
+const fraunces = Fraunces({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],
@@ -13,7 +14,7 @@ const spectral = Spectral({
   display: "swap",
 });
 
-const hanken = Hanken_Grotesk({
+const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-ui",
@@ -54,10 +55,12 @@ export default function RootLayout({
 
   const content = (
     <html lang="en-GB" suppressHydrationWarning>
-      <body className={`${spectral.variable} ${hanken.variable} antialiased`}>
+      <body className={`${fraunces.variable} ${inter.variable} antialiased`}>
         <ThemeProvider>
-          <ServiceWorkerRegister />
-          {children}
+          <PostHogProvider>
+            <ServiceWorkerRegister />
+            {children}
+          </PostHogProvider>
         </ThemeProvider>
       </body>
     </html>

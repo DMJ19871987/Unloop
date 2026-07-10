@@ -120,19 +120,19 @@ export function HeroFieldDemo() {
 
     if (phase === "transcript") {
       if (transcriptIndex < DEMO_TRANSCRIPT.length) {
-        const t = setTimeout(() => setTranscriptIndex((i) => i + 1), 28);
+        const t = setTimeout(() => setTranscriptIndex((i) => i + 1), 18);
         timers.push(t);
       } else {
-        timers.push(setTimeout(() => setPhase("dissolve"), 800));
+        timers.push(setTimeout(() => setPhase("dissolve"), 400));
       }
     } else if (phase === "dissolve") {
-      timers.push(setTimeout(() => setPhase("field"), 1200));
+      timers.push(setTimeout(() => setPhase("field"), 900));
     } else if (phase === "field") {
-      timers.push(setTimeout(() => setPhase("close"), 2500));
+      timers.push(setTimeout(() => setPhase("close"), 1800));
     } else if (phase === "close") {
-      timers.push(setTimeout(() => setPhase("drift"), 2000));
+      timers.push(setTimeout(() => setPhase("drift"), 1500));
     } else if (phase === "drift") {
-      timers.push(setTimeout(cycle, 4000));
+      timers.push(setTimeout(cycle, 2500));
     }
 
     return () => timers.forEach(clearTimeout);

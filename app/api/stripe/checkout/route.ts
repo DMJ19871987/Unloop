@@ -112,8 +112,10 @@ async function handleCheckout(plan: PlanKey) {
     customer: customerId,
     mode: plan === "lifetime" ? "payment" : "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/field?checkout=success`,
-    cancel_url: `${appUrl}/pricing?checkout=cancelled`,
+    success_url: `${appUrl}/onboarding?checkout=success`,
+    cancel_url: `${appUrl}/subscribe?checkout=cancelled`,
+    payment_method_collection: "always",
+    automatic_tax: { enabled: true },
     metadata: {
       userId: user.id,
       plan,

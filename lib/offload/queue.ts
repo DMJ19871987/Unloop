@@ -61,11 +61,24 @@ export interface ExtractQueueResult {
   resources?: CrisisResources;
   stats?: ExtractionStats;
   proposals?: ExtractionProposal[];
+  createdIds?: string[];
+}
+
+export interface ProcessQueueError {
+  error: string;
+}
+
+export type ProcessQueueOutcome = ExtractQueueResult | ProcessQueueError;
+
+export function isQueueError(
+  result: ProcessQueueOutcome | null
+): result is ProcessQueueError {
+  return result !== null && "error" in result;
 }
 
 export async function processQueue(
   onProgress?: (message: string) => void
-): Promise<ExtractQueueResult | null> {
+): Promise<ProcessQueueOutcome | null> {
   if (!platform.isOnline()) return null;
 
   const queue = await getQueue();
@@ -103,11 +116,17 @@ export async function processQueue(
     });
 
     if (!extractRes.ok) throw new Error("Extract failed");
-    const result = (await extractRes.json()) as ExtractQueueResult;
+    const result = (await extractRes.json()) as ExtractQueueResult & {
+      created?: { id: string }[];
+      newLoops?: { id: string }[];
+    };
+    const createdIds = (result.created ?? result.newLoops ?? []).map((l) => l.id);
     await removeFromQueue(item.id);
-    return result;
+    return { ...result, createdIds };
   } catch {
-    return null;
+    return {
+      error: "Could not process your held offload. Try again when you are back online.",
+    };
   }
 }
 

@@ -32,6 +32,8 @@ export interface LoopCircleProps {
   labelPosition?: LabelPosition;
   visibleCount?: number;
   forField?: boolean;
+  labelMaxWidth?: number;
+  compactLabel?: boolean;
 }
 
 const VIEW_R = 45;
@@ -58,6 +60,8 @@ export function LoopCircle({
   labelPosition = "below",
   visibleCount = 1,
   forField = false,
+  labelMaxWidth,
+  compactLabel = false,
 }: LoopCircleProps) {
   const visual = loopVisualStyle(state, weight, emotionalIntensity, {
     visibleCount,
@@ -117,12 +121,16 @@ export function LoopCircle({
   const labelNode =
     showLabel && label ? (
       <span
-        className={`font-ui text-[13px] font-medium text-center whitespace-nowrap ${
+        className={`break-words font-ui font-medium text-center ${
+          compactLabel ? "text-[11px] leading-[1.2]" : "text-[13px] leading-snug"
+        } ${
           labelPosition === "right" ? "ml-2 self-center" : ""
         }`}
         style={{
           color: labelColor ?? "var(--ink-soft)",
           opacity: labelOpacity,
+          width: labelMaxWidth,
+          maxWidth: labelMaxWidth,
         }}
       >
         {label}
@@ -138,7 +146,13 @@ export function LoopCircle({
             ? "flex-col-reverse items-center"
             : "flex-col items-center"
       } gap-1 ${className}`}
-      style={{ width: labelPosition === "right" ? undefined : size, ...style }}
+      style={{
+        width:
+          labelPosition === "right"
+            ? undefined
+            : Math.max(size, labelMaxWidth ?? size),
+        ...style,
+      }}
     >
       <svg
         width={size}

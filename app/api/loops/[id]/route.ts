@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db/client";
 import { loops, loopEvents, offloadSessions } from "@/lib/db/schema";
 import { transitionLoop, toLoopDTO } from "@/lib/loops/transitions";
 import { canTransition } from "@/lib/loops/state";
+import { stateForGravityZone } from "@/lib/loops/gravity";
 import type { ClosureAction } from "@/lib/types/loop";
 
 const actionSchema = z
@@ -34,6 +35,10 @@ const actionSchema = z
 
 const bodySchema = z.union([
   actionSchema,
+  z.object({
+    gravityZone: z.enum(["ready", "clarify", "waiting"]),
+    nextStep: z.string().trim().min(1).optional(),
+  }),
   z.object({
     label: z.string().min(1).max(80),
   }),
@@ -155,6 +160,70 @@ export async function PATCH(
       return NextResponse.json({ loop: toLoopDTO(updated) });
     }
 
+    if ("gravityZone" in data) {
+      const existing = await db.query.loops.findFirst({
+        where: and(eq(loops.id, id), eq(loops.userId, user.id)),
+      });
+
+      if (!existing) {
+        return NextResponse.json({ error: "Loop not found." }, { status: 404 });
+      }
+
+      const toState = stateForGravityZone(data.gravityZone);
+      const nextStep = data.nextStep ?? existing.nextStep;
+      if (data.gravityZone === "ready" && !nextStep) {
+        return NextResponse.json(
+          { error: "Add a next step before moving this loop to Ready." },
+          { status: 400 }
+        );
+      }
+      if (!canTransition(existing.state, toState)) {
+        return NextResponse.json(
+          { error: `Cannot move this loop from ${existing.state}.` },
+          { status: 400 }
+        );
+      }
+
+      const now = new Date();
+      const resurfaceAfter =
+        data.gravityZone === "waiting"
+          ? existing.resurfaceAfter ?? new Date(now.getTime() + 21 * 86400000)
+          : null;
+      const eventNote =
+        data.gravityZone === "ready"
+          ? nextStep
+          : data.gravityZone === "waiting"
+            ? "Moved to waiting"
+            : "Moved to needs clarity";
+
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(loops)
+          .set({
+            state: toState,
+            nextStep: data.gravityZone === "clarify" ? null : nextStep,
+            resurfaceAfter,
+            updatedAt: now,
+          })
+          .where(and(eq(loops.id, id), eq(loops.userId, user.id)))
+          .returning();
+
+        if (!row) throw new Error("Loop not found.");
+
+        await tx.insert(loopEvents).values({
+          loopId: id,
+          userId: user.id,
+          fromState: existing.state,
+          toState,
+          note: eventNote,
+        });
+
+        return row;
+      });
+
+      return NextResponse.json({ loop: toLoopDTO(updated) });
+    }
+
     if ("nextStep" in data && !("action" in data)) {
       const existing = await db.query.loops.findFirst({
         where: and(eq(loops.id, id), eq(loops.userId, user.id)),
@@ -181,7 +250,7 @@ export async function PATCH(
             state: toState,
             updatedAt: new Date(),
           })
-          .where(eq(loops.id, id))
+          .where(and(eq(loops.id, id), eq(loops.userId, user.id)))
           .returning();
 
         await tx.insert(loopEvents).values({

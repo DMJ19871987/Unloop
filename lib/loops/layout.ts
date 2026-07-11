@@ -2,20 +2,19 @@ import {
   forceSimulation,
   forceManyBody,
   forceCollide,
-  forceCenter,
   forceX,
   forceY,
   type SimulationNodeDatum,
 } from "d3-force";
 import type { LoopState } from "./state";
 import { loopVisualStyle } from "./state";
+import { gravityZoneForState, type GravityZone } from "./gravity";
 import type { LabelPosition } from "./layout-types";
 
 export const FIELD_VISIBLE_CAP = 14;
-export const LABEL_HEIGHT = 20;
 export const LABEL_CHAR_PX = 7;
-export const COLLIDE_PADDING = 12;
-export const VIEWPORT_MARGIN = 32;
+export const COLLIDE_PADDING = 10;
+export const VIEWPORT_MARGIN = 18;
 
 export interface LayoutLoop {
   id: string;
@@ -37,6 +36,7 @@ export interface LayoutOptions {
   width: number;
   height: number;
   visibleCount?: number;
+  leftInset?: number;
 }
 
 interface SimNode extends SimulationNodeDatum {
@@ -46,48 +46,52 @@ interface SimNode extends SimulationNodeDatum {
   emotionalIntensity: number;
   label: string;
   visualSeed: number;
+  circleRadius: number;
   collideRadius: number;
   labelWidth: number;
+  labelHeight: number;
   labelPosition: LabelPosition;
-  targetAngle: number;
-  targetNormR: number;
+  targetX: number;
+  targetY: number;
 }
+
+const ZONE_Y: Record<GravityZone, number> = {
+  ready: 0.17,
+  clarify: 0.5,
+  waiting: 0.83,
+};
 
 function hashSeed(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h << 5) - h + id.charCodeAt(i);
-    h |= 0;
+  let hash = 0;
+  for (let index = 0; index < id.length; index++) {
+    hash = (hash << 5) - hash + id.charCodeAt(index);
+    hash |= 0;
   }
-  return Math.abs(h);
-}
-
-function targetNormRadius(
-  state: LoopState,
-  weight: number,
-  emotionalIntensity: number
-): number {
-  switch (state) {
-    case "open_attention":
-      return Math.max(0.06, 0.34 - (weight * emotionalIntensity) / 42);
-    case "next_step_known":
-      return 0.26;
-    case "parked":
-      return 0.4;
-    default:
-      return 0.2;
-  }
+  return Math.abs(hash);
 }
 
 function loopPriority(state: LoopState, weight: number): number {
   const order: Record<LoopState, number> = {
-    open_attention: 0,
-    next_step_known: 1,
-    parked: 4,
-    released: 5,
-    done: 6,
+    next_step_known: 0,
+    open_attention: 1,
+    parked: 2,
+    released: 3,
+    done: 4,
   };
   return order[state] * 10 - weight;
+}
+
+export function fieldLayoutCircleSize(
+  item: Pick<LayoutLoop, "state" | "weight" | "emotionalIntensity">,
+  width: number,
+  visibleCount: number
+): number {
+  const visual = loopVisualStyle(item.state, item.weight, item.emotionalIntensity, {
+    visibleCount,
+    forField: true,
+  });
+  if (width < 480) return Math.max(32, Math.min(58, visual.size * 0.65));
+  return Math.min(112, visual.size);
 }
 
 /** Split loops into visible field set + collapsed cluster when above cap. */
@@ -109,39 +113,22 @@ export function partitionFieldLoops<T extends LayoutLoop & { label?: string }>(
   };
 }
 
-function estimateLabelWidth(label: string): number {
-  return Math.max(48, label.length * LABEL_CHAR_PX + 8);
-}
-
-function labelBox(
-  node: SimNode,
-  pos: LabelPosition
-): { left: number; right: number; top: number; bottom: number } {
-  const r = node.collideRadius - COLLIDE_PADDING - LABEL_HEIGHT;
-  const lw = node.labelWidth;
-  const lh = LABEL_HEIGHT;
-
-  if (pos === "right") {
-    return {
-      left: node.x! + r + 4,
-      right: node.x! + r + 4 + lw,
-      top: node.y! - lh / 2,
-      bottom: node.y! + lh / 2,
-    };
-  }
-
-  const cy = pos === "above" ? node.y! - r - 6 - lh : node.y! + r + 6;
+function labelBox(node: SimNode, position: LabelPosition) {
+  const labelY =
+    position === "above"
+      ? (node.y ?? 0) - node.circleRadius - 5 - node.labelHeight
+      : (node.y ?? 0) + node.circleRadius + 5;
   return {
-    left: node.x! - lw / 2,
-    right: node.x! + lw / 2,
-    top: cy,
-    bottom: cy + lh,
+    left: (node.x ?? 0) - node.labelWidth / 2,
+    right: (node.x ?? 0) + node.labelWidth / 2,
+    top: labelY,
+    bottom: labelY + node.labelHeight,
   };
 }
 
 function boxesOverlap(
-  a: { left: number; right: number; top: number; bottom: number },
-  b: { left: number; right: number; top: number; bottom: number },
+  a: ReturnType<typeof labelBox>,
+  b: ReturnType<typeof labelBox>,
   gap = 4
 ): boolean {
   return !(
@@ -153,26 +140,20 @@ function boxesOverlap(
 }
 
 function nudgeLabels(nodes: SimNode[]): void {
-  const positions: LabelPosition[] = ["below", "above"];
-
   for (let pass = 0; pass < 3; pass++) {
     let moved = false;
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
-        const boxA = labelBox(a, a.labelPosition);
-        const boxB = labelBox(b, b.labelPosition);
-
-        if (!boxesOverlap(boxA, boxB)) continue;
-
+    for (let first = 0; first < nodes.length; first++) {
+      for (let second = first + 1; second < nodes.length; second++) {
+        const a = nodes[first];
+        const b = nodes[second];
+        if (!boxesOverlap(labelBox(a, a.labelPosition), labelBox(b, b.labelPosition))) {
+          continue;
+        }
         const victim =
-          loopPriority(a.state, a.weight) > loopPriority(b.state, b.weight)
-            ? a
-            : b;
-        const currentIdx = positions.indexOf(victim.labelPosition);
-        if (currentIdx < positions.length - 1) {
-          victim.labelPosition = positions[currentIdx + 1];
+          loopPriority(a.state, a.weight) > loopPriority(b.state, b.weight) ? a : b;
+        const nextPosition = victim.labelPosition === "below" ? "above" : "below";
+        if (nextPosition !== victim.labelPosition) {
+          victim.labelPosition = nextPosition;
           moved = true;
         }
       }
@@ -181,21 +162,24 @@ function nudgeLabels(nodes: SimNode[]): void {
   }
 }
 
-function keepLabelsInView(nodes: SimNode[], width: number, height: number): void {
+function keepNodesInView(
+  nodes: SimNode[],
+  width: number,
+  height: number,
+  leftInset: number
+): void {
   for (const node of nodes) {
-    const circleR = node.collideRadius - COLLIDE_PADDING - LABEL_HEIGHT;
-    const horizontalExtent = Math.max(circleR, node.labelWidth / 2);
-    const labelOffset = circleR + 6 + LABEL_HEIGHT;
-    const topExtent = node.labelPosition === "above" ? labelOffset : circleR;
-    const bottomExtent = node.labelPosition === "below" ? labelOffset : circleR;
-
-    const minX = VIEWPORT_MARGIN + horizontalExtent;
+    const horizontalExtent = Math.max(node.circleRadius, node.labelWidth / 2);
+    const labelOffset = node.circleRadius + 5 + node.labelHeight;
+    const topExtent = node.labelPosition === "above" ? labelOffset : node.circleRadius;
+    const bottomExtent = node.labelPosition === "below" ? labelOffset : node.circleRadius;
+    const minX = leftInset + VIEWPORT_MARGIN + horizontalExtent;
     const maxX = width - VIEWPORT_MARGIN - horizontalExtent;
     const minY = VIEWPORT_MARGIN + topExtent;
     const maxY = height - VIEWPORT_MARGIN - bottomExtent;
 
-    node.x = minX > maxX ? width / 2 : Math.max(minX, Math.min(maxX, node.x ?? width / 2));
-    node.y = minY > maxY ? height / 2 : Math.max(minY, Math.min(maxY, node.y ?? height / 2));
+    node.x = minX > maxX ? (leftInset + width) / 2 : Math.max(minX, Math.min(maxX, node.x ?? minX));
+    node.y = minY > maxY ? height / 2 : Math.max(minY, Math.min(maxY, node.y ?? minY));
   }
 }
 
@@ -208,30 +192,36 @@ export function computeLoopLayout(
   if (items.length === 0) return [];
 
   const visibleCount = options?.visibleCount ?? items.length;
-  const cx = width / 2;
-  const cy = height / 2;
-  const maxR = Math.min(width, height) * 0.42;
-  const minX = VIEWPORT_MARGIN;
-  const maxX = width - VIEWPORT_MARGIN;
-  const minY = VIEWPORT_MARGIN;
-  const maxY = height - VIEWPORT_MARGIN;
+  const leftInset = Math.max(0, options?.leftInset ?? 0);
+  const compact = width < 480;
+  const labelHeight = compact ? 32 : 20;
+  const maxLabelWidth = compact ? 96 : 170;
+  const availableLeft = leftInset + VIEWPORT_MARGIN;
+  const availableRight = width - VIEWPORT_MARGIN;
+  const availableWidth = Math.max(120, availableRight - availableLeft);
 
-  const sorted = [...items].sort(
-    (a, b) => loopPriority(a.state, a.weight) - loopPriority(b.state, b.weight)
-  );
-  const angleStep = (Math.PI * 2) / Math.max(items.length, 1);
+  const grouped = new Map<GravityZone, LayoutLoop[]>();
+  for (const item of items) {
+    const zone = gravityZoneForState(item.state);
+    const group = grouped.get(zone) ?? [];
+    group.push(item);
+    grouped.set(zone, group);
+  }
+  grouped.forEach((group) => group.sort((a, b) => loopPriority(a.state, a.weight) - loopPriority(b.state, b.weight)));
 
   const nodes: SimNode[] = items.map((item) => {
-    const sortIndex = sorted.findIndex((s) => s.id === item.id);
-    const visual = loopVisualStyle(item.state, item.weight, item.emotionalIntensity, {
-      visibleCount,
-      forField: true,
-    });
-    const circleR = visual.size / 2;
-    const label = item.label ?? "";
+    const zone = gravityZoneForState(item.state);
+    const group = grouped.get(zone) ?? [item];
+    const groupIndex = Math.max(0, group.findIndex((candidate) => candidate.id === item.id));
+    const slot = (groupIndex + 1) / (group.length + 1);
     const seed = item.visualSeed ?? hashSeed(item.id);
-    const h = hashSeed(item.id);
-    const angle = sortIndex * angleStep + ((h % 20) / 20) * 0.15;
+    const circleSize = fieldLayoutCircleSize(item, width, visibleCount);
+    const label = item.label ?? "";
+    const jitterX = ((seed % 13) - 6) * (compact ? 1.2 : 2.2);
+    const jitterY = (((seed >> 3) % 9) - 4) * (compact ? 1.5 : 2.5);
+    const targetX = availableLeft + slot * availableWidth + jitterX;
+    const targetY = height * ZONE_Y[zone] + jitterY;
+    const measuredLabelWidth = Math.max(54, label.length * LABEL_CHAR_PX + 8);
 
     return {
       id: item.id,
@@ -240,98 +230,55 @@ export function computeLoopLayout(
       emotionalIntensity: item.emotionalIntensity,
       label,
       visualSeed: seed,
-      labelWidth: estimateLabelWidth(label),
-      labelPosition: "below" as LabelPosition,
-      collideRadius: circleR + LABEL_HEIGHT + COLLIDE_PADDING,
-      targetAngle: angle,
-      targetNormR: targetNormRadius(item.state, item.weight, item.emotionalIntensity),
-      x: cx + Math.cos(angle) * maxR * 0.2,
-      y: cy + Math.sin(angle) * maxR * 0.2,
+      circleRadius: circleSize / 2,
+      collideRadius: circleSize / 2 + labelHeight + COLLIDE_PADDING,
+      labelWidth: Math.min(maxLabelWidth, measuredLabelWidth),
+      labelHeight,
+      labelPosition: groupIndex % 2 === 0 ? "below" : "above",
+      targetX,
+      targetY,
+      x: targetX,
+      y: targetY,
     };
   });
 
-  function targetXY(node: SimNode) {
-    const dist = node.targetNormR * maxR;
-    return {
-      x: cx + Math.cos(node.targetAngle) * dist,
-      y: cy + Math.sin(node.targetAngle) * dist,
-    };
-  }
-
-  const sim = forceSimulation(nodes)
-    .force("charge", forceManyBody<SimNode>().strength(-90))
+  const simulation = forceSimulation(nodes)
+    .force("charge", forceManyBody<SimNode>().strength(compact ? -45 : -75))
     .force(
       "collide",
       forceCollide<SimNode>()
-        .radius((d) => d.collideRadius)
-        .strength(0.95)
-        .iterations(4)
+        .radius((node) => node.collideRadius)
+        .strength(1)
+        .iterations(5)
     )
-    .force("x", forceX<SimNode>().x((d) => targetXY(d).x).strength(0.14))
-    .force("y", forceY<SimNode>().y((d) => targetXY(d).y).strength(0.14))
-    .force("center", forceCenter(cx, cy).strength(0.02))
+    .force("x", forceX<SimNode>().x((node) => node.targetX).strength(0.3))
+    .force("y", forceY<SimNode>().y((node) => node.targetY).strength(0.5))
     .alpha(1)
-    .alphaDecay(0.018)
+    .alphaDecay(0.025)
     .stop();
 
-  let ticks = 0;
-  while (sim.alpha() > 0.005 && ticks < 500) {
-    sim.tick();
-    ticks++;
-  }
-
-  nodes.forEach((node) => {
-    node.x = Math.max(minX, Math.min(maxX, node.x ?? cx));
-    node.y = Math.max(minY, Math.min(maxY, node.y ?? cy));
-  });
-
-  for (let pass = 0; pass < 60; pass++) {
-    let moved = false;
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
-        const dx = (b.x ?? cx) - (a.x ?? cx);
-        const dy = (b.y ?? cy) - (a.y ?? cy);
-        const dist = Math.hypot(dx, dy) || 1;
-        const minDist = a.collideRadius + b.collideRadius + 16;
-        if (dist < minDist) {
-          const push = (minDist - dist) / 2;
-          a.x = (a.x ?? cx) - (dx / dist) * push;
-          a.y = (a.y ?? cy) - (dy / dist) * push;
-          b.x = (b.x ?? cx) + (dx / dist) * push;
-          b.y = (b.y ?? cy) + (dy / dist) * push;
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
-    nodes.forEach((node) => {
-      node.x = Math.max(minX, Math.min(maxX, node.x ?? cx));
-      node.y = Math.max(minY, Math.min(maxY, node.y ?? cy));
-    });
+  for (let ticks = 0; simulation.alpha() > 0.005 && ticks < 360; ticks++) {
+    simulation.tick();
   }
 
   nudgeLabels(nodes);
-  keepLabelsInView(nodes, width, height);
+  keepNodesInView(nodes, width, height, leftInset);
 
-  return nodes.map((n) => ({
-    id: n.id,
-    x: n.x ?? cx,
-    y: n.y ?? cy,
-    labelPosition: n.labelPosition,
+  return nodes.map((node) => ({
+    id: node.id,
+    x: node.x ?? node.targetX,
+    y: node.y ?? node.targetY,
+    labelPosition: node.labelPosition,
   }));
 }
 
 export function summariseLoops(loops: { state: LoopState }[]) {
-  const openAttention = loops.filter((l) => l.state === "open_attention").length;
-  const nextStepKnown = loops.filter((l) => l.state === "next_step_known").length;
-  const parked = loops.filter((l) => l.state === "parked").length;
-
+  const openAttention = loops.filter((loop) => loop.state === "open_attention").length;
+  const nextStepKnown = loops.filter((loop) => loop.state === "next_step_known").length;
+  const parked = loops.filter((loop) => loop.state === "parked").length;
   const parts: string[] = [];
   if (openAttention > 0) parts.push(`${openAttention} need attention`);
   if (nextStepKnown > 0) parts.push(`${nextStepKnown} have a next step`);
-  if (parked > 0) parts.push(`${parked} parked`);
-
+  if (parked > 0) parts.push(`${parked} waiting`);
   return parts.length > 0 ? parts.join(" · ") : "Nothing occupying you right now";
 }

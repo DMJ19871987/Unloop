@@ -16,6 +16,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { CRISIS_RESOURCES } from "@/lib/safety/crisis-resources";
 import { crisisPrescreen } from "@/lib/safety/crisis-prescreen";
 import type { LoopCategory } from "@/lib/types/loop";
+import { fromApiState } from "@/lib/ai/extraction-types";
 
 const bodySchema = z.object({
   transcript: z.string().min(1),
@@ -145,7 +146,13 @@ export async function POST(request: Request) {
         const category = VALID_CATEGORIES.has(item.category)
           ? (item.category as LoopCategory)
           : "other";
-        const state = item.next_step ? "next_step_known" : "open_attention";
+        const suggestedState = fromApiState(item.state ?? null);
+        const state =
+          suggestedState === "parked"
+            ? "parked"
+            : item.next_step
+              ? "next_step_known"
+              : "open_attention";
 
         const [created] = await tx
           .insert(loops)
@@ -157,6 +164,8 @@ export async function POST(request: Request) {
             weight: Math.min(5, Math.max(1, item.weight)),
             emotionalIntensity: Math.min(5, Math.max(1, item.emotional_intensity)),
             nextStep: item.next_step,
+            resurfaceAfter:
+              state === "parked" ? new Date(Date.now() + 21 * 86400000) : null,
             visualSeed: visualSeedFromLabel(item.label, user.id),
             firstSessionId: session.id,
             mentionCount: 1,

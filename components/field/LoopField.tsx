@@ -2,13 +2,24 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { LoopCircle } from "./LoopCircle";
+import { GravityNextStepPrompt } from "./GravityNextStepPrompt";
 import { SummaryBar } from "./SummaryBar";
 import { FieldToggle } from "./FieldToggle";
 import { LoopDetailSheet } from "@/components/sheet/LoopDetailSheet";
 import type { LoopDTO } from "@/lib/types/loop";
-import { computeLoopLayout, partitionFieldLoops } from "@/lib/loops/layout";
+import {
+  computeLoopLayout,
+  fieldLayoutCircleSize,
+  partitionFieldLoops,
+} from "@/lib/loops/layout";
+import {
+  GRAVITY_ZONES,
+  gravityZoneForState,
+  stateForGravityZone,
+  type GravityZone,
+} from "@/lib/loops/gravity";
 
 interface LoopFieldProps {
   loops: LoopDTO[];
@@ -33,7 +44,13 @@ export function LoopField({
 }: LoopFieldProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCollapsedCluster, setShowCollapsedCluster] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropZone, setDropZone] = useState<GravityZone | null>(null);
+  const [pendingReadyId, setPendingReadyId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
+  const didDragRef = useRef(false);
   const [fieldSize, setFieldSize] = useState({ width: 390, height: 520 });
 
   useEffect(() => {
@@ -55,6 +72,9 @@ export function LoopField({
   }, []);
 
   const selected = loops.find((l) => l.id === selectedId) ?? null;
+  const pendingReadyLoop = loops.find((l) => l.id === pendingReadyId) ?? null;
+  const compact = fieldSize.width < 480;
+  const leftInset = compact ? 74 : 112;
 
   const { visibleLoops, collapsedLoops, collapsedCount, clusterLabel } = useMemo(() => {
     const { visible, collapsed } = partitionFieldLoops(
@@ -99,10 +119,19 @@ export function LoopField({
       })),
       fieldSize.width,
       fieldSize.height,
-      { visibleCount: visibleLoops.length }
+      { visibleCount: visibleLoops.length, leftInset }
     );
     return new Map(layout.map((p) => [p.id, p]));
-  }, [visibleLoops, fieldSize]);
+  }, [visibleLoops, fieldSize, leftInset]);
+
+  const zoneCounts = useMemo(() => {
+    const counts: Record<GravityZone, number> = { ready: 0, clarify: 0, waiting: 0 };
+    for (const loop of loops) {
+      const zone = gravityZoneForState(loop.state);
+      if (zone) counts[zone] += 1;
+    }
+    return counts;
+  }, [loops]);
 
   const isEmpty = loops.length === 0;
 
@@ -117,15 +146,79 @@ export function LoopField({
     return order;
   }, [visibleLoops, newLoopIds]);
 
+  function zoneAtPoint(point: PanInfo["point"]): GravityZone | null {
+    const rect = fieldRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const relativeY = Math.max(0, Math.min(0.999, (point.y - rect.top) / rect.height));
+    if (relativeY < 1 / 3) return "ready";
+    if (relativeY < 2 / 3) return "clarify";
+    return "waiting";
+  }
+
+  async function moveLoop(loop: LoopDTO, zone: GravityZone, nextStep?: string) {
+    setMovingId(loop.id);
+    setMoveError(null);
+
+    try {
+      if (dummyMode) {
+        const now = new Date();
+        const updated: LoopDTO = {
+          ...loop,
+          state: stateForGravityZone(zone),
+          nextStep: zone === "ready" ? nextStep ?? loop.nextStep : zone === "clarify" ? null : loop.nextStep,
+          resurfaceAfter:
+            zone === "waiting"
+              ? loop.resurfaceAfter ?? new Date(now.getTime() + 21 * 86400000).toISOString()
+              : null,
+          updatedAt: now.toISOString(),
+        };
+        onLoopUpdate(updated);
+        setPendingReadyId(null);
+        return;
+      }
+
+      const response = await fetch(`/api/loops/${loop.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gravityZone: zone, nextStep }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not move this loop.");
+      onLoopUpdate(data.loop);
+      setPendingReadyId(null);
+    } catch (error) {
+      setMoveError(error instanceof Error ? error.message : "Could not move this loop.");
+    } finally {
+      setMovingId(null);
+    }
+  }
+
+  function finishDrag(loop: LoopDTO, info: PanInfo) {
+    const zone = zoneAtPoint(info.point);
+    setDraggingId(null);
+    setDropZone(null);
+    window.setTimeout(() => {
+      didDragRef.current = false;
+    }, 0);
+
+    if (!zone || zone === gravityZoneForState(loop.state)) return;
+    if (zone === "ready" && !loop.nextStep) {
+      setMoveError(null);
+      setPendingReadyId(loop.id);
+      return;
+    }
+    void moveLoop(loop, zone);
+  }
+
   return (
-    <div className="relative min-h-[85vh] flex flex-col overflow-hidden">
+    <div className="relative flex min-h-[calc(100dvh-8rem)] flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-10 h-72 field-surface opacity-80" aria-hidden />
-      <header className="relative z-10 px-6 sm:px-8 pt-6 pb-3 flex items-start justify-between gap-4">
-        <div className="animate-float-in">
+      <header className="relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 px-4 pb-3 pt-5 sm:gap-4 sm:px-8 sm:pt-6">
+        <div className="min-w-0 animate-float-in">
           <p className="font-ui text-[10px] uppercase tracking-[2.6px] text-ink-placeholder mb-1">
             Mental field
           </p>
-          <h1 className="font-heading text-[26px] font-medium text-ink">Occupying you</h1>
+          <h1 className="font-heading text-[24px] font-medium leading-tight text-ink sm:text-[26px]">Occupying you</h1>
           <SummaryBar loops={loops} />
         </div>
         <FieldToggle view="occupying" />
@@ -133,13 +226,44 @@ export function LoopField({
 
       <div
         ref={fieldRef}
-        className="relative flex-1 mx-auto w-full max-w-[420px] lg:max-w-[760px] min-h-[540px]"
+        className="relative mx-auto min-h-[480px] w-full max-w-[440px] flex-1 overflow-hidden sm:min-h-[560px] lg:max-w-[760px]"
       >
-        <div
-          className="pointer-events-none absolute inset-x-8 top-16 h-[360px] rounded-full border border-border/40 opacity-45"
-          style={{ animation: "field-breathe 9s ease-in-out infinite" }}
-          aria-hidden
-        />
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute inset-x-0 top-1/3 border-t border-border-soft/55" />
+          <div className="absolute inset-x-0 top-2/3 border-t border-border-soft/55" />
+          <div className="absolute bottom-0 left-[74px] top-0 border-l border-border-soft/60 sm:left-[112px]" />
+          {GRAVITY_ZONES.map((zone, index) => (
+            <div
+              key={zone.id}
+              className={`absolute left-0 flex w-[74px] -translate-y-1/2 flex-col px-2 transition-colors sm:w-[112px] sm:px-3 ${
+                draggingId && dropZone === zone.id ? "text-accent-selected" : "text-ink-placeholder"
+              }`}
+              style={{ top: `${(index + 0.5) * 33.333}%` }}
+            >
+              <span className="font-ui text-[9px] font-medium uppercase leading-tight tracking-[1.2px] sm:text-[10px]">
+                {compact ? zone.shortLabel : zone.label}
+              </span>
+              <span className="mt-1 font-ui text-[10px] tabular-nums text-ink-faint">{zoneCounts[zone.id]}</span>
+              <span className="mt-1 hidden font-ui text-[10px] leading-snug text-ink-placeholder lg:block">
+                {zone.description}
+              </span>
+            </div>
+          ))}
+          {draggingId && dropZone && (
+            <motion.div
+              layoutId="gravity-drop-band"
+              className="absolute bottom-auto left-[74px] right-0 h-1/3 bg-accent-tint/25 sm:left-[112px]"
+              style={{ top: `${GRAVITY_ZONES.findIndex((zone) => zone.id === dropZone) * 33.333}%` }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            />
+          )}
+        </div>
+        {moveError && !pendingReadyLoop && (
+          <p className="absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full bg-sheet/95 px-4 py-2 font-ui text-xs text-accent shadow-subtle" role="alert">
+            {moveError}
+          </p>
+        )}
         {isEmpty ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 animate-float-in">
             <LoopCircle
@@ -178,7 +302,20 @@ export function LoopField({
               return (
                 <motion.div
                   key={loop.id}
-                  className="absolute"
+                  className={`absolute z-10 ${movingId === loop.id ? "opacity-60" : ""}`}
+                  drag={!isClosing}
+                  dragConstraints={fieldRef}
+                  dragElastic={0.06}
+                  dragMomentum={false}
+                  onDragStart={() => {
+                    didDragRef.current = true;
+                    setDraggingId(loop.id);
+                    setDropZone(gravityZoneForState(loop.state));
+                    setMoveError(null);
+                  }}
+                  onDrag={(_event, info) => setDropZone(zoneAtPoint(info.point))}
+                  onDragEnd={(_event, info) => finishDrag(loop, info)}
+                  whileDrag={{ scale: 1.06, zIndex: 40, cursor: "grabbing" }}
                   initial={
                     isNew
                       ? {
@@ -233,8 +370,10 @@ export function LoopField({
                   <div className="-translate-x-1/2 -translate-y-1/2">
                   <motion.button
                     type="button"
-                    onClick={() => setSelectedId(loop.id)}
-                    className="group focus:outline-none"
+                    onClick={() => {
+                      if (!didDragRef.current) setSelectedId(loop.id);
+                    }}
+                    className="group cursor-grab touch-none focus:outline-none"
                     aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
                     whileHover={{ scale: 1.035 }}
                     whileTap={{ scale: 0.96 }}
@@ -245,12 +384,15 @@ export function LoopField({
                     weight={loop.weight}
                     emotionalIntensity={loop.emotionalIntensity}
                     visualSeed={loop.visualSeed}
+                    size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
                     animateArc={isClosing ? 1 : undefined}
                     closingMode={isClosing ? closingAction ?? undefined : undefined}
-                    drift={!isClosing}
+                    drift={!isClosing && draggingId !== loop.id}
                     labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
                     labelPosition={pos?.labelPosition ?? "below"}
                     visibleCount={visibleLoops.length}
+                    labelMaxWidth={compact ? 96 : 170}
+                    compactLabel={compact}
                     forField
                   />
                 </motion.button>
@@ -358,6 +500,19 @@ export function LoopField({
         }}
         allLoops={loops}
         dummyMode={dummyMode}
+      />
+
+      <GravityNextStepPrompt
+        loop={pendingReadyLoop}
+        saving={movingId === pendingReadyId}
+        error={pendingReadyLoop ? moveError : null}
+        onSave={(nextStep) =>
+          pendingReadyLoop ? moveLoop(pendingReadyLoop, "ready", nextStep) : undefined
+        }
+        onCancel={() => {
+          setPendingReadyId(null);
+          setMoveError(null);
+        }}
       />
     </div>
   );

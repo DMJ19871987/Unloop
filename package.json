@@ -8,7 +8,7 @@
     "vercel-build": "drizzle-kit migrate && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test lib/ai/apply-policy.test.ts lib/ai/apply-changes.test.ts",
+    "test": "tsx --test lib/ai/apply-policy.test.ts lib/ai/apply-changes.test.ts lib/loops/gravity.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

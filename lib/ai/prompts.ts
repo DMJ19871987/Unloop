@@ -15,6 +15,7 @@ Rules:
 - emotional_intensity (1–5): how emotionally charged it sounds.
 - category: one of people, decisions, logistics, home, work, money, health, ideas, other.
 - If the person states a next step, capture it in next_step.
+- For a new loop, use state "parked" when the person is clearly waiting on someone or something, or explicitly says it is outside their control. Do not park something merely because it is difficult. Use "next_step_known" only when next_step is present; otherwise use "open".
 - Ignore filler and things explicitly resolved in passing without clear intent.
 - If the transcript contains no loops, return empty arrays. Do not invent loops.
 - Never include advice, commentary, or judgement.

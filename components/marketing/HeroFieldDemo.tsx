@@ -207,7 +207,8 @@ export function HeroFieldDemo() {
   }, [phase, transcriptIndex, reducedMotion]);
 
   const showTranscript = phase === "transcript" || phase === "dissolve";
-  const showLoops = phase !== "transcript";
+  const showLoops = true;
+  const listeningDimmed = phase === "transcript" || phase === "dissolve";
   const closingSequence = phase === "focus" || phase === "tap" || phase === "release" || phase === "quiet";
   const isReleasing = phase === "release";
   const isComplete = phase === "quiet";
@@ -239,7 +240,7 @@ export function HeroFieldDemo() {
               animate={{ opacity: phase === "dissolve" ? 0 : 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 1 }}
-              className="absolute inset-6 flex items-center justify-center"
+              className="absolute inset-6 z-20 flex items-center justify-center"
             >
               <p className="font-ui text-sm leading-relaxed text-ink-muted text-center">
                 {reducedMotion
@@ -259,10 +260,10 @@ export function HeroFieldDemo() {
               <motion.div
                 key="loops"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: listeningDimmed ? 0.16 : 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1.2 }}
-                className="absolute inset-0"
+                className="absolute inset-0 z-10"
               >
                 {DEMO_LOOPS.map((loop, i) => {
                   const pos = positions.get(loop.id);

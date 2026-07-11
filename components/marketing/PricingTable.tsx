@@ -55,6 +55,14 @@ export function PricingTable() {
 
   return (
     <div className="space-y-4">
+      <div className="mx-auto mb-8 grid max-w-4xl grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-5 font-ui text-xs text-ink-muted sm:grid-cols-4">
+        {["Voice and typed offload", "Living mental field", "Searchable History", "Weekly reflections"].map((feature) => (
+          <span key={feature} className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+            {feature}
+          </span>
+        ))}
+      </div>
       {inlineError && (
         <p className="font-ui text-sm text-accent text-center max-w-md mx-auto">{inlineError}</p>
       )}
@@ -65,7 +73,7 @@ export function PricingTable() {
       >
         <div className="md:col-span-1 order-first bg-accent-tint border-2 border-accent rounded-[24px] p-6 space-y-4 relative shadow-soft">
           <span className="absolute -top-3 left-4 px-3 py-0.5 bg-accent text-white text-xs font-ui rounded-full">
-            Recommended
+            Best value
           </span>
           <h3 className="font-heading text-xl font-medium text-ink pt-2">Annual</h3>
           <div>
@@ -89,7 +97,7 @@ export function PricingTable() {
             <span className="font-heading text-2xl font-semibold text-ink">£4.99</span>
             <span className="font-ui text-sm text-ink-muted">/month</span>
           </div>
-          <p className="font-ui text-xs text-ink-faint">More per month than annual</p>
+          <p className="font-ui text-xs text-ink-faint">Flexible monthly billing</p>
           <button
             type="button"
             onClick={() => handlePlanClick("monthly")}
@@ -100,6 +108,9 @@ export function PricingTable() {
           </button>
         </div>
       </div>
+      <p className="mx-auto max-w-xl text-center font-ui text-xs leading-relaxed text-ink-faint">
+        A payment method is required. You will not be charged until the 7-day trial ends, and you can cancel from Settings before then.
+      </p>
     </div>
   );
 }

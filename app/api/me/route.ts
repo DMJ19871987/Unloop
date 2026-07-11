@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
 import { getOrCreateUser } from "@/lib/auth/user";
 import { getDb } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
+import { offloadSessions, users } from "@/lib/db/schema";
 import { getStripe } from "@/lib/stripe/config";
 import { cancelStripeBilling } from "@/lib/billing/reconcile-subscription";
 
@@ -52,11 +52,22 @@ export async function PATCH(request: Request) {
   if (body.onboardingComplete !== undefined) updates.onboardingComplete = body.onboardingComplete;
   if (body.notificationFrequency !== undefined) updates.notificationFrequency = body.notificationFrequency;
 
-  const [updated] = await db
-    .update(users)
-    .set(updates)
-    .where(eq(users.id, user.id))
-    .returning();
+  const [updated] = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, user.id))
+      .returning();
+
+    if (body.keepTranscripts === false) {
+      await tx
+        .update(offloadSessions)
+        .set({ transcript: null })
+        .where(and(eq(offloadSessions.userId, user.id), eq(offloadSessions.crisis, false)));
+    }
+
+    return rows;
+  });
 
   return NextResponse.json({ user: updated });
 }

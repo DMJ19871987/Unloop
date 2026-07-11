@@ -9,7 +9,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What happens to my audio?",
-    a: "Your voice is transcribed and not stored on our servers. When you are offline, a recording may wait on your device for up to 24 hours until it is sent or you discard it. Transcripts can be kept to match loops across sessions — you can turn that off in settings.",
+    a: "Audio is sent to OpenAI for transcription and is not saved in Unloop's database. When you are offline, a recording may wait on your device for up to 24 hours until it is sent or discarded. The transcript is sent to Anthropic to identify loops. You can choose not to keep non-safety transcripts in Unloop.",
   },
   {
     q: "Can I type instead of speaking?",
@@ -17,7 +17,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What if I have loads of loops?",
-    a: "The field adapts. Parked loops settle to the edges. When things get dense, older parked loops compress into a gentle cluster you can expand when ready.",
+    a: "The field keeps a calm selection visible across Ready, Clarify, and Waiting. When it gets dense, additional loops remain available in the searchable Field index instead of being squeezed into the canvas.",
   },
   {
     q: "How do I cancel?",

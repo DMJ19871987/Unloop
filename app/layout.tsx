@@ -22,14 +22,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Unloop — Empty your head",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://unloop.app"),
+  title: "Unloop - Empty your head",
   description:
-    "A visual decompression tool for mental offload. Turn racing thoughts and mental load into calm open loops you can close, contain, or set down.",
+    "Speak or type what is circling. Unloop turns mental load into a calm field of open loops you can move, park, or release.",
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "Unloop — Empty your head",
+    title: "Unloop - Empty your head",
     description:
-      "Speak freely. Unloop turns the swirl into a calm field of open loops.",
+      "Turn mental load into a calm field of open loops you can move, park, or release.",
     type: "website",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Unloop - Empty your head",
+    description: "Turn mental load into a calm field of open loops.",
+    images: ["/opengraph-image"],
   },
   manifest: "/manifest.json",
   appleWebApp: {

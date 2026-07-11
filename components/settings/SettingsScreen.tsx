@@ -12,6 +12,7 @@ import {
   getConsentState,
   type ConsentState,
 } from "@/lib/analytics";
+import { clearQueue } from "@/lib/offload/queue";
 
 const UserProfile = dynamic(
   () => import("@clerk/nextjs").then((m) => m.UserProfile),
@@ -92,7 +93,10 @@ export function SettingsScreen() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: "DELETE" }),
     });
-    if (res.ok) router.push("/");
+    if (res.ok) {
+      await clearQueue();
+      router.push("/");
+    }
     else {
       const data = await res.json().catch(() => ({}));
       setMessage(
@@ -325,9 +329,9 @@ export function SettingsScreen() {
           Privacy &amp; data
         </h2>
         <p className="font-ui text-sm text-ink-muted leading-relaxed">
-          Spoken, structured, deleted. Your audio is transcribed and not stored on our servers.
-          When offline, recordings may wait on your device for up to 24 hours. Your thoughts are
-          never used to train AI.
+          Audio is sent to OpenAI for transcription and is not saved in Unloop&apos;s database.
+          Transcripts are processed by Anthropic to identify loops. Offline recordings may remain
+          on this device for up to 24 hours.
         </p>
         <label className="flex items-center justify-between min-h-[48px]">
           <span className="font-ui text-sm text-ink-soft">Don&apos;t keep my transcripts</span>

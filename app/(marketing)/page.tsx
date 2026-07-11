@@ -12,6 +12,7 @@ import {
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 
 import { AnalyticsConsent } from "@/components/marketing/AnalyticsConsent";
+import { MarketingFieldStory } from "@/components/marketing/MarketingFieldStory";
 
 export default function LandingPage() {
   return (
@@ -20,6 +21,7 @@ export default function LandingPage() {
       <Hero />
       <PullQuote />
       <HowItWorks />
+      <MarketingFieldStory />
       <ScienceBand />
       <RecordSection />
       <PrivacyBand />

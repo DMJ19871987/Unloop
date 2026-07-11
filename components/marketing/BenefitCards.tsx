@@ -1,29 +1,37 @@
-const CARDS = [
+import { LoopCircle } from "@/components/field/LoopCircle";
+
+const STEPS = [
   {
+    number: "01",
     title: "Empty your head",
-    description: "Talk for two minutes. No structure needed.",
+    description: "Speak for a moment or type quietly. No structure, categories, or perfect wording needed.",
     visual: "capture" as const,
   },
   {
+    number: "02",
     title: "See what's occupying you",
-    description: "Every unresolved thing becomes a loop. Big and bold means it's taking space.",
+    description: "Unloop identifies the open threads it hears and turns them into loops you can review.",
     visual: "field" as const,
   },
   {
-    title: "Close it, contain it, or set it down",
-    description: "Done, next-step-known, parked, or released. Closure without a to-do list.",
+    number: "03",
+    title: "Choose what happens next",
+    description: "Give a loop a next step, park it, mark it done, or release it without making another list.",
     visual: "sheet" as const,
   },
 ];
 
-function CardVisual({ type }: { type: "capture" | "field" | "sheet" }) {
+function StepVisual({ type }: { type: "capture" | "field" | "sheet" }) {
   if (type === "capture") {
     return (
-      <div className="flex items-center justify-center h-32 field-surface rounded-2xl">
-        <div className="relative w-20 h-20">
-          <div className="absolute inset-0 rounded-full bg-accent-breathe animate-pulse shadow-soft" />
-          <div className="absolute inset-3 rounded-full bg-accent-button flex items-center justify-center shadow-[var(--shadow-inset)]">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-selected)" strokeWidth="1.5">
+      <div className="relative flex h-40 items-center justify-center overflow-hidden field-surface">
+        <p className="absolute inset-x-6 top-5 text-center font-ui text-xs leading-relaxed text-ink-faint">
+          “I keep thinking about the conversation with Maya…”
+        </p>
+        <div className="relative mt-8 h-20 w-20">
+          <div className="absolute inset-0 animate-pulse rounded-full bg-accent-breathe shadow-soft" />
+          <div className="absolute inset-3 flex items-center justify-center rounded-full bg-accent-button shadow-[var(--shadow-inset)]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-selected)" strokeWidth="1.5" aria-hidden>
               <rect x="9" y="2.5" width="6" height="11" rx="3" />
               <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
               <line x1="12" y1="17.5" x2="12" y2="21" />
@@ -36,22 +44,26 @@ function CardVisual({ type }: { type: "capture" | "field" | "sheet" }) {
 
   if (type === "field") {
     return (
-      <div className="relative h-32 flex items-center justify-center field-surface rounded-2xl">
-        <div className="absolute w-14 h-14 rounded-full border-[3px] border-accent opacity-80" style={{ borderStyle: "dashed" }} />
-        <div className="absolute w-10 h-10 rounded-full border-2 border-closed opacity-70 translate-x-8 -translate-y-4" style={{ borderStyle: "dashed" }} />
-        <div className="absolute w-6 h-6 rounded-full border border-ink-placeholder opacity-40 -translate-x-10 translate-y-6" />
+      <div className="relative h-40 overflow-hidden field-surface">
+        <div className="absolute left-[20%] top-[18%]">
+          <LoopCircle label="Talk to Maya" state="open_attention" weight={4} emotionalIntensity={3} visualSeed={91} size={52} labelMaxWidth={92} compactLabel drift />
+        </div>
+        <div className="absolute right-[14%] top-[45%]">
+          <LoopCircle label="Book dentist" state="next_step_known" weight={2} emotionalIntensity={1} visualSeed={64} size={38} labelMaxWidth={80} compactLabel drift />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-32 flex items-end justify-center pb-2">
-      <div className="w-full max-w-[200px] glass-panel rounded-t-2xl p-3 space-y-2">
-        <div className="w-8 h-1 bg-border rounded mx-auto" />
-        <div className="flex flex-wrap gap-1.5 justify-center">
-          {["I've done it", "Next step", "Later"].map((pill) => (
-            <span key={pill} className="px-2 py-1 text-[10px] rounded-full border border-border text-ink-soft">
-              {pill}
+    <div className="flex h-40 items-end justify-center bg-[color-mix(in_srgb,var(--accent-tint)_22%,transparent)] px-5">
+      <div className="w-full max-w-[230px] rounded-t-2xl border border-b-0 border-border bg-sheet p-4 shadow-soft">
+        <div className="mx-auto h-1 w-8 rounded bg-border" />
+        <p className="mt-3 text-center font-heading text-sm text-ink">Talk to Maya</p>
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
+          {["Done", "Next step", "Park"].map((action) => (
+            <span key={action} className="rounded-full border border-border px-1.5 py-1.5 text-center text-[9px] text-ink-soft">
+              {action}
             </span>
           ))}
         </div>
@@ -62,16 +74,14 @@ function CardVisual({ type }: { type: "capture" | "field" | "sheet" }) {
 
 export function BenefitCards() {
   return (
-    <div className="grid md:grid-cols-3 gap-6">
-      {CARDS.map((card) => (
-        <div
-          key={card.title}
-          className="glass-panel rounded-[24px] p-6 space-y-3 transition duration-300 hover:-translate-y-1"
-        >
-          <CardVisual type={card.visual} />
-          <h3 className="font-heading text-lg font-medium text-ink">{card.title}</h3>
-          <p className="font-ui text-sm text-ink-muted leading-relaxed">{card.description}</p>
-        </div>
+    <div className="grid border-y border-border md:grid-cols-3">
+      {STEPS.map((step, index) => (
+        <article key={step.title} className={`py-7 md:px-7 ${index > 0 ? "border-t border-border md:border-l md:border-t-0" : ""}`}>
+          <StepVisual type={step.visual} />
+          <p className="mt-6 font-ui text-[10px] tracking-[2px] text-accent-selected">{step.number}</p>
+          <h3 className="mt-2 font-heading text-xl font-medium text-ink">{step.title}</h3>
+          <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">{step.description}</p>
+        </article>
       ))}
     </div>
   );

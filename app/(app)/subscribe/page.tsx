@@ -1,33 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { STRIPE_PRICES } from "@/lib/stripe/config";
+import { parsePublicPlan, type PublicPlan } from "@/lib/stripe/plans";
 import { track } from "@/lib/analytics";
 
 export default function SubscribePage() {
-  const [loading, setLoading] = useState<"annual" | "monthly" | null>(null);
+  const searchParams = useSearchParams();
+  const initialPlan = parsePublicPlan(searchParams.get("plan")) ?? "annual";
+  const [selectedPlan, setSelectedPlan] = useState<PublicPlan>(initialPlan);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(plan: "annual" | "monthly") {
-    setLoading(plan);
+  useEffect(() => {
+    const plan = parsePublicPlan(searchParams.get("plan"));
+    if (plan) setSelectedPlan(plan);
+  }, [searchParams]);
+
+  async function startCheckout() {
+    setLoading(true);
     setError(null);
-    track("signup_started", { plan, source: "subscribe" });
+    track("checkout_started", { plan: selectedPlan, source: "subscribe" });
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan: selectedPlan }),
       });
       const data = await res.json();
       if (!res.ok) {
+        track("checkout_failed", {
+          plan: selectedPlan,
+          source: "subscribe",
+          code: res.status === 401 ? "unauthorised" : "api_error",
+        });
         setError(data.error ?? "Checkout failed.");
         return;
       }
       if (data.url) window.location.href = data.url;
     } catch {
+      track("checkout_failed", { plan: selectedPlan, source: "subscribe", code: "network" });
       setError("Checkout failed. Please try again.");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
@@ -44,28 +60,39 @@ export default function SubscribePage() {
         </p>
       )}
 
-      <div className="flex flex-col gap-4 w-full max-w-xs">
+      <div className="flex flex-col gap-3 w-full max-w-xs mb-6">
         <button
           type="button"
-          onClick={() => startCheckout("annual")}
-          disabled={loading !== null}
-          className="min-h-[48px] px-6 py-3 rounded-full bg-accent text-paper font-ui text-sm disabled:opacity-50"
+          onClick={() => setSelectedPlan("annual")}
+          className={`min-h-[48px] px-6 py-3 rounded-full font-ui text-sm border transition-colors ${
+            selectedPlan === "annual"
+              ? "bg-accent text-paper border-accent"
+              : "border-border text-ink-soft"
+          }`}
         >
-          {loading === "annual"
-            ? "Opening checkout…"
-            : `£${(STRIPE_PRICES.annual.amount / 100).toFixed(2)}/year — 7 days free`}
+          £{(STRIPE_PRICES.annual.amount / 100).toFixed(2)}/year — 7 days free
         </button>
         <button
           type="button"
-          onClick={() => startCheckout("monthly")}
-          disabled={loading !== null}
-          className="min-h-[48px] px-6 py-3 rounded-full border border-border text-ink-soft font-ui text-sm disabled:opacity-50"
+          onClick={() => setSelectedPlan("monthly")}
+          className={`min-h-[48px] px-6 py-3 rounded-full font-ui text-sm border transition-colors ${
+            selectedPlan === "monthly"
+              ? "bg-accent text-paper border-accent"
+              : "border-border text-ink-soft"
+          }`}
         >
-          {loading === "monthly"
-            ? "Opening checkout…"
-            : `£${(STRIPE_PRICES.monthly.amount / 100).toFixed(2)}/month`}
+          £{(STRIPE_PRICES.monthly.amount / 100).toFixed(2)}/month
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={startCheckout}
+        disabled={loading}
+        className="min-h-[48px] px-8 py-3 rounded-full bg-accent text-paper font-ui text-sm disabled:opacity-50"
+      >
+        {loading ? "Opening checkout…" : "Continue to checkout"}
+      </button>
     </div>
   );
 }

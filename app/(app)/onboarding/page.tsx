@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { track } from "@/lib/analytics";
 
 const PANELS = [
   { id: 1, text: "Your head isn't storage." },
@@ -12,13 +13,66 @@ const PANELS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const reducedMotion = useReducedMotion();
   const [panel, setPanel] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const [checkoutPending, setCheckoutPending] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const isCheckoutSuccess = searchParams.get("checkout") === "success";
+  const sessionId = searchParams.get("session_id");
+
+  const pollCheckoutStatus = useCallback(async () => {
+    if (!sessionId) {
+      setCheckoutError("Checkout session missing. You can continue from subscribe.");
+      setCheckoutPending(false);
+      return;
+    }
+
+    const maxAttempts = 12;
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const res = await fetch(
+          `/api/stripe/checkout-status?session_id=${encodeURIComponent(sessionId)}`
+        );
+        if (res.status === 404 || res.status === 403) {
+          setCheckoutError("We could not verify your checkout. Please contact support.");
+          setCheckoutPending(false);
+          return;
+        }
+        if (!res.ok) {
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
+        }
+        const data = await res.json();
+        if (data.ready) {
+          track("checkout_completed", { source: "onboarding" });
+          setCheckoutPending(false);
+          return;
+        }
+      } catch {
+        // retry
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    setCheckoutError(
+      "Payment received — setup is taking longer than usual. Refresh in a moment or check settings."
+    );
+    setCheckoutPending(false);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (isCheckoutSuccess && sessionId) {
+      setCheckoutPending(true);
+      void pollCheckoutStatus();
+    }
+  }, [isCheckoutSuccess, sessionId, pollCheckoutStatus]);
 
   const isLast = panel === PANELS.length - 1;
 
   const advance = () => {
+    if (checkoutPending) return;
     if (isLast) {
       finish();
     } else {
@@ -27,7 +81,7 @@ export default function OnboardingPage() {
   };
 
   const finish = async () => {
-    if (finishing) return;
+    if (finishing || checkoutPending) return;
     setFinishing(true);
     try {
       await fetch("/api/me", {
@@ -35,6 +89,7 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ onboardingComplete: true }),
       });
+      track("signup_completed");
     } catch {
       // Continue to offload even if flag save fails
     }
@@ -45,12 +100,31 @@ export default function OnboardingPage() {
   const swipePower = (offset: number, velocity: number) =>
     Math.abs(offset) * velocity;
 
+  if (checkoutPending) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center max-w-sm mx-auto">
+        <h1 className="font-heading text-2xl font-medium text-ink mb-3">
+          Setting up your space
+        </h1>
+        <p className="font-ui text-sm text-ink-muted">
+          Confirming your trial — this usually takes a few seconds.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center max-w-sm mx-auto"
       onClick={advance}
       role="presentation"
     >
+      {checkoutError && (
+        <p className="font-ui text-sm text-accent mb-6" role="alert">
+          {checkoutError}
+        </p>
+      )}
+
       <div className="relative w-full min-h-[200px] flex items-center justify-center mb-10">
         <AnimatePresence mode={reducedMotion ? "sync" : "wait"} initial={false}>
           <motion.h1

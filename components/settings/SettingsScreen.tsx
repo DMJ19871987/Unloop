@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { track } from "@/lib/analytics";
+import { track, withdrawConsent, setConsentState, getConsentState } from "@/lib/analytics";
 
 const UserProfile = dynamic(
   () => import("@clerk/nextjs").then((m) => m.UserProfile),
@@ -20,6 +20,8 @@ interface UserSettings {
   keepTranscripts: boolean;
   notificationFrequency: number;
   subscriptionStatus: string;
+  subscriptionAccess?: string;
+  trialEndsAt?: string | null;
 }
 
 export function SettingsScreen() {
@@ -82,8 +84,31 @@ export function SettingsScreen() {
       body: JSON.stringify({ confirm: "DELETE" }),
     });
     if (res.ok) router.push("/");
-    else setMessage("Deletion failed. Please try again.");
+    else {
+      const data = await res.json().catch(() => ({}));
+      setMessage(
+        data.error ??
+          "Deletion could not be completed. Your account and billing are unchanged."
+      );
+      setDeleteStep(0);
+    }
   }
+
+  function formatBillingDate(iso: string | null | undefined) {
+    if (!iso) return null;
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  const trialEnd = formatBillingDate(settings?.trialEndsAt ?? null);
+  const isTrialing = settings?.subscriptionStatus === "trialing";
+  const isPastDue = settings?.subscriptionStatus === "past_due";
+  const isLapsed =
+    settings?.subscriptionAccess === "blocked" ||
+    settings?.subscriptionStatus === "canceled";
 
   if (loading) {
     return (
@@ -125,8 +150,21 @@ export function SettingsScreen() {
           onClick={openBilling}
           className="font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px] rounded-full"
         >
-          Manage subscription ({settings?.subscriptionStatus})
+          Manage subscription
         </button>
+        {isTrialing && trialEnd && (
+          <p className="font-ui text-xs text-ink-faint">Trial ends {trialEnd}</p>
+        )}
+        {isPastDue && (
+          <p className="font-ui text-xs text-accent">
+            There is a problem with your payment. Update your card to keep offloading.
+          </p>
+        )}
+        {isLapsed && (
+          <p className="font-ui text-xs text-ink-muted">
+            Your subscription has ended. Your loops remain readable — renew to keep offloading.
+          </p>
+        )}
       </section>
 
       {showProfile && hasClerk && (
@@ -212,12 +250,39 @@ export function SettingsScreen() {
       </section>
 
       <section className="space-y-3 glass-panel rounded-[24px] p-5">
+        <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">Analytics</h2>
+        <p className="font-ui text-sm text-ink-muted leading-relaxed">
+          Privacy-safe usage analytics only — no audio, transcripts, or loop content.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setConsentState("accepted")}
+            className="font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px] px-4"
+          >
+            Accept analytics
+          </button>
+          <button
+            type="button"
+            onClick={() => withdrawConsent()}
+            className="font-ui text-sm text-ink-faint hover:text-ink-soft min-h-[48px] px-4"
+          >
+            Decline / withdraw
+          </button>
+        </div>
+        <p className="font-ui text-xs text-ink-faint">
+          Current preference: {getConsentState()}
+        </p>
+      </section>
+
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">
           Privacy &amp; data
         </h2>
         <p className="font-ui text-sm text-ink-muted leading-relaxed">
-          Spoken, structured, deleted. Your audio is transcribed and immediately discarded.
-          Your thoughts are never used to train AI.
+          Spoken, structured, deleted. Your audio is transcribed and not stored on our servers.
+          When offline, recordings may wait on your device for up to 24 hours. Your thoughts are
+          never used to train AI.
         </p>
         <label className="flex items-center justify-between min-h-[48px]">
           <span className="font-ui text-sm text-ink-soft">Don&apos;t keep my transcripts</span>
@@ -240,7 +305,9 @@ export function SettingsScreen() {
           onClick={deleteAccount}
           className="block font-ui text-sm text-accent hover:text-accent-hover min-h-[48px]"
         >
-          {deleteStep === 0 ? "Delete everything" : "Confirm — delete all data permanently"}
+          {deleteStep === 0
+            ? "Delete everything"
+            : "Confirm — this cancels billing and permanently removes all data"}
         </button>
       </section>
     </div>

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser, requireUser } from "@/lib/auth/user";
 import {
   getSubscriptionAccess,
+  canUseFreeOffload,
   WRITE_BLOCKED_MESSAGE,
+  FREE_OFFLOAD_MESSAGE,
   type SubscriptionAccess,
 } from "@/lib/auth/subscription";
 
@@ -27,7 +29,11 @@ export async function requireWriteUser() {
   }
   const access = getSubscriptionAccess(user);
   if (access !== "full") {
-    return NextResponse.json({ error: WRITE_BLOCKED_MESSAGE }, { status: 403 });
+    const message =
+      user.freeOffloadUsed && !user.trialEndsAt
+        ? FREE_OFFLOAD_MESSAGE
+        : WRITE_BLOCKED_MESSAGE;
+    return NextResponse.json({ error: message }, { status: 403 });
   }
   return user;
 }
@@ -35,3 +41,5 @@ export async function requireWriteUser() {
 export function isWriteBlocked(result: unknown): result is NextResponse {
   return result instanceof NextResponse;
 }
+
+export { canUseFreeOffload };

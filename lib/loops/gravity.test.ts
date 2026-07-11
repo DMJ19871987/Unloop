@@ -9,6 +9,7 @@ import {
   fieldLayoutCircleSize,
   selectVisibleFieldLoops,
 } from "./layout";
+import { computeFloatingLoopLayout } from "./float-layout";
 
 describe("meaningful gravity", () => {
   it("maps active loop states to visible gravity zones", () => {
@@ -85,6 +86,57 @@ describe("meaningful gravity", () => {
       computeLoopLayout(loops, 1280, 720),
       computeLoopLayout(loops, 1280, 720)
     );
+  });
+
+  it("adds deterministic asymmetry to equal-sized lane groups", () => {
+    const loops = [
+      { id: "r1", state: "next_step_known" as const, weight: 3, emotionalIntensity: 2, visualSeed: 11 },
+      { id: "r2", state: "next_step_known" as const, weight: 3, emotionalIntensity: 2, visualSeed: 22 },
+      { id: "c1", state: "open_attention" as const, weight: 3, emotionalIntensity: 2, visualSeed: 33 },
+      { id: "c2", state: "open_attention" as const, weight: 3, emotionalIntensity: 2, visualSeed: 44 },
+      { id: "w1", state: "parked" as const, weight: 3, emotionalIntensity: 2, visualSeed: 55 },
+      { id: "w2", state: "parked" as const, weight: 3, emotionalIntensity: 2, visualSeed: 66 },
+    ];
+    const first = computeLoopLayout(loops, 1440, 720);
+    const second = computeLoopLayout(loops, 1440, 720);
+    const byId = new Map(first.map((position) => [position.id, position]));
+
+    assert.deepEqual(first, second);
+    assert.notEqual(byId.get("r1")!.x, byId.get("c1")!.x);
+    assert.notEqual(byId.get("r2")!.y % 240, byId.get("w2")!.y % 240);
+  });
+
+  it("keeps force-settled loops inside their gravity lanes", () => {
+    const loops = [
+      { id: "r1", state: "next_step_known" as const, weight: 5, emotionalIntensity: 4, visualSeed: 11 },
+      { id: "r2", state: "next_step_known" as const, weight: 3, emotionalIntensity: 2, visualSeed: 22 },
+      { id: "c1", state: "open_attention" as const, weight: 4, emotionalIntensity: 4, visualSeed: 33 },
+      { id: "c2", state: "open_attention" as const, weight: 2, emotionalIntensity: 2, visualSeed: 44 },
+      { id: "w1", state: "parked" as const, weight: 3, emotionalIntensity: 2, visualSeed: 55 },
+      { id: "w2", state: "parked" as const, weight: 2, emotionalIntensity: 1, visualSeed: 66 },
+    ];
+    const width = 1280;
+    const height = 720;
+    const leftInset = 168;
+    const fixed = computeLoopLayout(loops, width, height, { leftInset });
+    const floating = computeFloatingLoopLayout(loops, fixed, width, height, {
+      leftInset,
+      visibleCount: loops.length,
+    });
+    const repeated = computeFloatingLoopLayout(loops, fixed, width, height, {
+      leftInset,
+      visibleCount: loops.length,
+    });
+
+    assert.deepEqual(floating, repeated);
+    for (const position of floating) {
+      const loop = loops.find((item) => item.id === position.id)!;
+      const zone = gravityZoneForState(loop.state);
+      const zoneIndex = zone === "ready" ? 0 : zone === "clarify" ? 1 : 2;
+      assert.ok(position.y >= zoneIndex * (height / 3));
+      assert.ok(position.y <= (zoneIndex + 1) * (height / 3));
+      assert.ok(position.x > leftInset && position.x < width);
+    }
   });
 
   it("keeps dense mobile loops clear of their lane boundaries", () => {

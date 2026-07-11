@@ -91,7 +91,16 @@ export function ScienceBand() {
   return (
     <section className="px-6 py-14 max-w-3xl mx-auto text-center">
       <p className="font-ui text-ink-muted leading-relaxed">
-        Unfinished thoughts tend to stay with you more than finished ones — psychologists call this the Zeigarnik effect. Naming what&apos;s occupying you, and articulating a concrete next step, can quiet a loop almost as well as completing it. Unloop is built around that.
+        Unfinished goals can keep attention active. Naming what is occupying you, and making a specific plan, may reduce that interference. Unloop is built around that idea — not around completing every task.
+        {" "}
+        <a
+          href="https://faculty.washington.edu/chantel/dream_lab/Masicampo%20and%20Baumeister%202011.pdf"
+          className="text-accent-selected hover:text-accent-hover underline underline-offset-2"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Read the research
+        </a>
       </p>
     </section>
   );
@@ -141,7 +150,7 @@ export function PrivacyBand() {
       <div className="max-w-3xl mx-auto text-center space-y-3">
         <h2 className="font-heading text-xl font-medium">Spoken, structured, deleted.</h2>
         <p className="font-ui text-sm leading-relaxed opacity-90">
-          Your audio is transcribed and immediately discarded. Your thoughts are never used to train AI. Export or erase everything, any time.
+          Your audio is transcribed and not retained on our servers. When offline, recordings may be held temporarily on your device until sent or discarded. Your thoughts are never used to train AI. Export or erase everything, any time.
         </p>
       </div>
     </section>

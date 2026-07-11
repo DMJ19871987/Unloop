@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { getOrCreateUser } from "@/lib/auth/user";
-import { requireWriteUser, isWriteBlocked } from "@/lib/auth/require-access";
+import { requireWriteUser, isWriteBlocked, canUseFreeOffload } from "@/lib/auth/require-access";
 import { getDb } from "@/lib/db/client";
 import { loops, offloadSessions, loopEvents, users } from "@/lib/db/schema";
 import { extractLoops } from "@/lib/ai/extract";
@@ -136,6 +136,7 @@ export async function POST(request: Request) {
         .update(users)
         .set({
           sessionsCompleted: sql`${users.sessionsCompleted} + 1`,
+          ...(canUseFreeOffload(user) ? { freeOffloadUsed: true } : {}),
         })
         .where(eq(users.id, user.id));
 

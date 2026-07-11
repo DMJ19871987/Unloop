@@ -2,13 +2,16 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, type PanInfo } from "framer-motion";
+import { motion, AnimatePresence, type PanInfo, useReducedMotion } from "framer-motion";
 import { LoopCircle } from "./LoopCircle";
 import { GravityNextStepPrompt } from "./GravityNextStepPrompt";
 import { SummaryBar } from "./SummaryBar";
 import { FieldToggle } from "./FieldToggle";
+import { FieldMotionToggle, type FieldMotionMode } from "./FieldMotionToggle";
 import { LoopDetailSheet } from "@/components/sheet/LoopDetailSheet";
 import type { LoopDTO } from "@/lib/types/loop";
+import { platform } from "@/lib/platform";
+import { track } from "@/lib/analytics";
 import {
   computeLoopLayout,
   fieldLabelMaxWidth,
@@ -16,6 +19,7 @@ import {
   fieldRailWidth,
   selectVisibleFieldLoops,
 } from "@/lib/loops/layout";
+import { computeFloatingLoopLayout } from "@/lib/loops/float-layout";
 import {
   GRAVITY_ZONES,
   gravityZoneForState,
@@ -35,6 +39,7 @@ interface LoopFieldProps {
 }
 
 type FieldDragEvent = MouseEvent | TouchEvent | PointerEvent;
+const FIELD_MOTION_KEY = "field-motion-mode";
 
 export function LoopField({
   loops,
@@ -54,10 +59,22 @@ export function LoopField({
   const [movingId, setMovingId] = useState<string | null>(null);
   const [preferredVisibleId, setPreferredVisibleId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [fieldMotion, setFieldMotion] = useState<FieldMotionMode>("fixed");
   const fieldRef = useRef<HTMLDivElement>(null);
   const zoneRefs = useRef(new Map<GravityZone, HTMLDivElement>());
   const didDragRef = useRef(false);
   const [fieldSize, setFieldSize] = useState({ width: 390, height: 520 });
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    let active = true;
+    platform.getLocal<FieldMotionMode>(FIELD_MOTION_KEY).then((saved) => {
+      if (active && (saved === "fixed" || saved === "float")) setFieldMotion(saved);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const el = fieldRef.current;
@@ -107,22 +124,43 @@ export function LoopField({
     };
   }, [fieldSize.width, loops, preferredVisibleId]);
 
+  const fixedPositions = useMemo(
+    () =>
+      computeLoopLayout(
+        visibleLoops.map((l) => ({
+          id: l.id,
+          state: l.state,
+          weight: l.weight,
+          emotionalIntensity: l.emotionalIntensity,
+          label: l.label,
+          visualSeed: l.visualSeed,
+        })),
+        fieldSize.width,
+        fieldSize.height,
+        { visibleCount: visibleLoops.length, leftInset }
+      ),
+    [visibleLoops, fieldSize, leftInset]
+  );
+
   const positions = useMemo(() => {
-    const layout = computeLoopLayout(
-      visibleLoops.map((l) => ({
-        id: l.id,
-        state: l.state,
-        weight: l.weight,
-        emotionalIntensity: l.emotionalIntensity,
-        label: l.label,
-        visualSeed: l.visualSeed,
-      })),
-      fieldSize.width,
-      fieldSize.height,
-      { visibleCount: visibleLoops.length, leftInset }
-    );
+    const layout =
+      fieldMotion === "float"
+        ? computeFloatingLoopLayout(
+            visibleLoops,
+            fixedPositions,
+            fieldSize.width,
+            fieldSize.height,
+            { leftInset, visibleCount: visibleLoops.length }
+          )
+        : fixedPositions;
     return new Map(layout.map((p) => [p.id, p]));
-  }, [visibleLoops, fieldSize, leftInset]);
+  }, [fieldMotion, fieldSize, fixedPositions, leftInset, visibleLoops]);
+
+  function changeFieldMotion(mode: FieldMotionMode) {
+    setFieldMotion(mode);
+    void platform.storeLocal(FIELD_MOTION_KEY, mode);
+    track("field_motion_changed", { mode });
+  }
 
   const zoneCounts = useMemo(() => {
     const counts: Record<GravityZone, number> = { ready: 0, clarify: 0, waiting: 0 };
@@ -237,7 +275,10 @@ export function LoopField({
             </button>
           )}
         </div>
-        <FieldToggle view="occupying" />
+        <div className="flex flex-col items-end gap-2">
+          <FieldToggle view="occupying" />
+          <FieldMotionToggle mode={fieldMotion} onChange={changeFieldMotion} />
+        </div>
       </header>
 
       <div
@@ -398,34 +439,39 @@ export function LoopField({
                   }
                 >
                   <div className="-translate-x-1/2 -translate-y-1/2">
-                  <motion.button
-                    type="button"
-                    onClick={() => {
-                      if (!didDragRef.current) setSelectedId(loop.id);
-                    }}
-                    className="group cursor-grab touch-none focus:outline-none"
-                    aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
-                    whileHover={{ scale: 1.035 }}
-                    whileTap={{ scale: 0.96 }}
-                  >
-                  <LoopCircle
-                    label={loop.label}
-                    state={loop.state}
-                    weight={loop.weight}
-                    emotionalIntensity={loop.emotionalIntensity}
-                    visualSeed={loop.visualSeed}
-                    size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
-                    animateArc={isClosing ? 1 : undefined}
-                    closingMode={isClosing ? closingAction ?? undefined : undefined}
-                    drift={!isClosing && draggingId !== loop.id}
-                    labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
-                    labelPosition={pos?.labelPosition ?? "below"}
-                    visibleCount={visibleLoops.length}
-                    labelMaxWidth={labelMaxWidth}
-                    compactLabel={compact}
-                    forField
-                  />
-                </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => {
+                        if (!didDragRef.current) setSelectedId(loop.id);
+                      }}
+                      className="group cursor-grab touch-none focus:outline-none"
+                      aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
+                      whileHover={{ scale: 1.035 }}
+                      whileTap={{ scale: 0.96 }}
+                    >
+                      <LoopCircle
+                        label={loop.label}
+                        state={loop.state}
+                        weight={loop.weight}
+                        emotionalIntensity={loop.emotionalIntensity}
+                        visualSeed={loop.visualSeed}
+                        size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
+                        animateArc={isClosing ? 1 : undefined}
+                        closingMode={isClosing ? closingAction ?? undefined : undefined}
+                        drift={
+                          fieldMotion === "float" &&
+                          reducedMotion !== true &&
+                          !isClosing &&
+                          draggingId !== loop.id
+                        }
+                        labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
+                        labelPosition={pos?.labelPosition ?? "below"}
+                        visibleCount={visibleLoops.length}
+                        labelMaxWidth={labelMaxWidth}
+                        compactLabel={compact}
+                        forField
+                      />
+                    </motion.button>
                   </div>
                 </motion.div>
               );

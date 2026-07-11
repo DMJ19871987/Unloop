@@ -41,8 +41,8 @@ export async function GET(request: Request) {
   for (const user of candidates) {
     if (!user.trialEndsAt) continue;
 
-    const ok = await sendTrialReminderEmail(user.email, user.trialEndsAt);
-    if (ok) {
+    const result = await sendTrialReminderEmail(user.email, user.trialEndsAt);
+    if (result.ok) {
       await db
         .update(users)
         .set({ trialReminderSentAt: new Date() })

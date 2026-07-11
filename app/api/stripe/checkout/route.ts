@@ -7,9 +7,15 @@ import { getOrCreateUser } from "@/lib/auth/user";
 import { getDb } from "@/lib/db/client";
 import { foundingMemberCounter, users } from "@/lib/db/schema";
 import { getStripe, STRIPE_PRICES, type PlanKey } from "@/lib/stripe/config";
+import { BETA_HIDE_LIFETIME } from "@/lib/stripe/plans";
+import { trackServer } from "@/lib/analytics-server";
 
 const bodySchema = z.object({
-  plan: z.enum(["annual", "monthly", "lifetime"]),
+  plan: z.enum(
+    BETA_HIDE_LIFETIME
+      ? ["annual", "monthly"]
+      : ["annual", "monthly", "lifetime"]
+  ),
 });
 
 async function getOrCreatePriceId(stripe: NonNullable<ReturnType<typeof getStripe>>, plan: PlanKey) {
@@ -68,7 +74,7 @@ async function handleCheckout(plan: PlanKey) {
 
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.redirect(new URL("/sign-up", appUrl));
+    return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
   }
 
   const user = await getOrCreateUser();
@@ -112,7 +118,7 @@ async function handleCheckout(plan: PlanKey) {
     customer: customerId,
     mode: plan === "lifetime" ? "payment" : "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/onboarding?checkout=success`,
+    success_url: `${appUrl}/onboarding?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/subscribe?checkout=cancelled`,
     payment_method_collection: "always",
     automatic_tax: { enabled: true },
@@ -130,6 +136,7 @@ async function handleCheckout(plan: PlanKey) {
   }
 
   const session = await stripe.checkout.sessions.create(sessionParams);
+  await trackServer("checkout_started", user.clerkId, { plan });
 
   let remaining: number | undefined;
   if (plan === "lifetime" && db) {
@@ -155,20 +162,9 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const plan = (searchParams.get("plan") ?? "annual") as PlanKey;
-
-  if (!["annual", "monthly", "lifetime"].includes(plan)) {
-    return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
-  }
-
-  const result = await handleCheckout(plan);
-  const data = await result.json();
-
-  if (data.url) {
-    return NextResponse.redirect(data.url);
-  }
-
-  return NextResponse.json(data, { status: result.status });
+export async function GET() {
+  return NextResponse.json(
+    { error: "Use POST with a valid plan after signing in." },
+    { status: 405 }
+  );
 }

@@ -1,11 +1,53 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import Stripe from "stripe";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { foundingMemberCounter, users } from "@/lib/db/schema";
-import { getStripe, STRIPE_PRICES } from "@/lib/stripe/config";
+import { stripeWebhookEvents, users } from "@/lib/db/schema";
+import { getStripe } from "@/lib/stripe/config";
+import {
+  reconcileFromCheckoutSession,
+  reconcileFromSubscription,
+} from "@/lib/billing/reconcile-subscription";
 import { trackServer } from "@/lib/analytics-server";
+
+async function claimEvent(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  event: Stripe.Event
+): Promise<"new" | "duplicate" | "retry"> {
+  const existing = await db.query.stripeWebhookEvents.findFirst({
+    where: eq(stripeWebhookEvents.id, event.id),
+  });
+  if (existing?.processedAt) return "duplicate";
+  if (existing) return "retry";
+
+  await db.insert(stripeWebhookEvents).values({
+    id: event.id,
+    eventType: event.type,
+  });
+  return "new";
+}
+
+async function markProcessed(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  eventId: string
+) {
+  await db
+    .update(stripeWebhookEvents)
+    .set({ processedAt: new Date(), failureSummary: null })
+    .where(eq(stripeWebhookEvents.id, eventId));
+}
+
+async function markFailed(
+  db: NonNullable<ReturnType<typeof getDb>>,
+  eventId: string,
+  summary: string
+) {
+  await db
+    .update(stripeWebhookEvents)
+    .set({ failureSummary: summary.slice(0, 500) })
+    .where(eq(stripeWebhookEvents.id, eventId));
+}
 
 export async function POST(request: Request) {
   const stripe = getStripe();
@@ -35,113 +77,97 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Database not configured." }, { status: 503 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
-      const plan = session.metadata?.plan;
+  const claim = await claimEvent(db, event);
+  if (claim === "duplicate") {
+    console.info(`stripe_webhook duplicate event_id=${event.id} type=${event.type}`);
+    return NextResponse.json({ received: true, duplicate: true });
+  }
 
-      if (!userId) break;
-
-      if (plan === "lifetime") {
-        await db
-          .update(users)
-          .set({ subscriptionStatus: "lifetime" })
-          .where(eq(users.id, userId));
-
-        await db
-          .insert(foundingMemberCounter)
-          .values({ id: "default", soldCount: 1 })
-          .onConflictDoUpdate({
-            target: foundingMemberCounter.id,
-            set: { soldCount: sql`${foundingMemberCounter.soldCount} + 1` },
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const result = await reconcileFromCheckoutSession(db, stripe, session);
+        if (result) {
+          const user = await db.query.users.findFirst({
+            where: eq(users.id, result.userId),
           });
-      } else if (session.subscription) {
-        const sub = await stripe.subscriptions.retrieve(session.subscription as string);
-        const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
-        await db
-          .update(users)
-          .set({
-            subscriptionStatus: sub.status === "trialing" ? "trialing" : "active",
-            trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
-            pastDueSince: null,
-          })
-          .where(eq(users.id, userId));
-        if (user) {
-          await trackServer("trial_started", user.clerkId, { plan: plan ?? "annual" });
+          if (user && result.subscriptionStatus === "trialing") {
+            await trackServer("trial_started", user.clerkId, {
+              plan: session.metadata?.plan ?? "annual",
+            });
+          }
+          if (user) {
+            await trackServer("checkout_completed", user.clerkId, {
+              plan: session.metadata?.plan,
+            });
+          }
         }
+        break;
       }
-      break;
-    }
 
-    case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId = subscription.customer as string;
-      const statusMap: Record<string, string> = {
-        trialing: "trialing",
-        active: "active",
-        past_due: "past_due",
-        canceled: "canceled",
-        unpaid: "past_due",
-      };
-      const status = statusMap[subscription.status] ?? "canceled";
-      const user = await db.query.users.findFirst({
-        where: eq(users.stripeCustomerId, customerId),
-      });
-
-      await db
-        .update(users)
-        .set({
-          subscriptionStatus: status,
-          trialEndsAt: subscription.trial_end
-            ? new Date(subscription.trial_end * 1000)
-            : null,
-          pastDueSince:
-            status === "past_due"
-              ? user?.pastDueSince ?? new Date()
-              : null,
-        })
-        .where(eq(users.stripeCustomerId, customerId));
-
-      if (user && status === "active" && user.subscriptionStatus !== "active") {
-        await trackServer("subscription_converted", user.clerkId, {
-          plan: subscription.metadata?.plan,
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        const prior = await db.query.users.findFirst({
+          where: eq(users.stripeCustomerId, subscription.customer as string),
         });
+        const result = await reconcileFromSubscription(db, subscription);
+        if (prior && result) {
+          if (
+            event.type === "customer.subscription.updated" &&
+            result.subscriptionStatus === "active" &&
+            prior.subscriptionStatus !== "active"
+          ) {
+            await trackServer("subscription_converted", prior.clerkId, {
+              plan: subscription.metadata?.plan,
+            });
+          }
+          if (event.type === "customer.subscription.deleted") {
+            await trackServer("subscription_canceled", prior.clerkId);
+          }
+        }
+        break;
       }
-      break;
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.customer) {
+          const user = await db.query.users.findFirst({
+            where: eq(users.stripeCustomerId, invoice.customer as string),
+          });
+          if (user) {
+            await db
+              .update(users)
+              .set({
+                subscriptionStatus: "past_due",
+                pastDueSince: user.pastDueSince ?? new Date(),
+              })
+              .where(eq(users.id, user.id));
+          }
+        }
+        break;
+      }
+
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.subscription && invoice.customer) {
+          const subscription = await stripe.subscriptions.retrieve(
+            invoice.subscription as string
+          );
+          await reconcileFromSubscription(db, subscription);
+        }
+        break;
+      }
     }
 
-    case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription;
-      const user = await db.query.users.findFirst({
-        where: eq(users.stripeCustomerId, subscription.customer as string),
-      });
-      await db
-        .update(users)
-        .set({ subscriptionStatus: "canceled", pastDueSince: null })
-        .where(eq(users.stripeCustomerId, subscription.customer as string));
-      if (user) {
-        await trackServer("subscription_canceled", user.clerkId);
-      }
-      break;
-    }
-
-    case "invoice.payment_failed": {
-      const invoice = event.data.object as Stripe.Invoice;
-      if (invoice.customer) {
-        const user = await db.query.users.findFirst({
-          where: eq(users.stripeCustomerId, invoice.customer as string),
-        });
-        await db
-          .update(users)
-          .set({
-            subscriptionStatus: "past_due",
-            pastDueSince: user?.pastDueSince ?? new Date(),
-          })
-          .where(eq(users.stripeCustomerId, invoice.customer as string));
-      }
-      break;
-    }
+    await markProcessed(db, event.id);
+    console.info(`stripe_webhook processed event_id=${event.id} type=${event.type}`);
+  } catch (error) {
+    const summary = error instanceof Error ? error.message : "processing failed";
+    await markFailed(db, event.id, summary);
+    console.error(`stripe_webhook failed event_id=${event.id} type=${event.type}`);
+    return NextResponse.json({ error: "Processing failed." }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

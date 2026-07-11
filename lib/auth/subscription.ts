@@ -14,9 +14,11 @@ export function getSubscriptionAccess(user: UserRow): SubscriptionAccess {
   }
 
   if (status === "trialing") {
-    // trialEndsAt is only set by the Stripe webhook after checkout completes.
-    // A trialing user without it has never finished checkout.
-    if (!user.trialEndsAt) return "blocked";
+    if (!user.trialEndsAt) {
+      if (!user.freeOffloadUsed) return "full";
+      if (!user.freeActivationComplete) return "full";
+      return "read_only";
+    }
     return user.trialEndsAt > new Date() ? "full" : "read_only";
   }
 
@@ -30,5 +32,25 @@ export function getSubscriptionAccess(user: UserRow): SubscriptionAccess {
   return "blocked";
 }
 
+export function canUseFreeOffload(user: UserRow): boolean {
+  return (
+    !user.trialEndsAt &&
+    !user.freeOffloadUsed &&
+    (user.subscriptionStatus ?? "trialing") === "trialing"
+  );
+}
+
+export function needsCheckout(user: UserRow): boolean {
+  return (
+    !user.trialEndsAt &&
+    (user.subscriptionStatus ?? "trialing") === "trialing" &&
+    user.freeOffloadUsed &&
+    user.freeActivationComplete
+  );
+}
+
 export const WRITE_BLOCKED_MESSAGE =
   "Your subscription has lapsed. Your loops are safe — renew to keep offloading.";
+
+export const FREE_OFFLOAD_MESSAGE =
+  "You have used your free session. Choose a plan to keep offloading.";

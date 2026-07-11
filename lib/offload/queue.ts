@@ -4,6 +4,11 @@ import { platform } from "@/lib/platform";
 import type { CrisisResources } from "@/lib/safety/crisis-resources";
 import type { ExtractionProposal } from "@/lib/ai/extraction-types";
 
+const TTL_MS = 24 * 60 * 60 * 1000;
+const QUEUE_KEY = "unloop:offload-queue";
+
+export type QueueStatus = "queued" | "processing" | "failed";
+
 export interface QueuedOffload {
   id: string;
   type: "voice" | "text";
@@ -12,17 +17,46 @@ export interface QueuedOffload {
   transcript?: string;
   durationSeconds?: number;
   createdAt: number;
+  expiresAt: number;
+  attemptCount: number;
+  status: QueueStatus;
 }
 
-const QUEUE_KEY = "unloop:offload-queue";
+function withDefaults(item: Partial<QueuedOffload> & Pick<QueuedOffload, "id" | "type">): QueuedOffload {
+  const createdAt = item.createdAt ?? Date.now();
+  return {
+    ...item,
+    createdAt,
+    expiresAt: item.expiresAt ?? createdAt + TTL_MS,
+    attemptCount: item.attemptCount ?? 0,
+    status: item.status ?? "queued",
+  };
+}
+
+export async function purgeExpiredQueue(): Promise<void> {
+  const queue = await getQueue();
+  const now = Date.now();
+  const fresh = queue.filter((q) => q.expiresAt > now);
+  if (fresh.length !== queue.length) {
+    await platform.storeLocal(QUEUE_KEY, fresh);
+  }
+}
 
 export async function getQueue(): Promise<QueuedOffload[]> {
-  return (await platform.getLocal<QueuedOffload[]>(QUEUE_KEY)) ?? [];
+  await purgeExpiredQueue();
+  const raw = (await platform.getLocal<QueuedOffload[]>(QUEUE_KEY)) ?? [];
+  return raw.map((item) => withDefaults(item));
 }
 
-export async function enqueueOffload(item: QueuedOffload) {
+export async function enqueueOffload(item: Omit<QueuedOffload, "expiresAt" | "attemptCount" | "status" | "createdAt"> & { createdAt?: number }) {
+  await purgeExpiredQueue();
   const queue = await getQueue();
-  queue.push(item);
+  queue.push(
+    withDefaults({
+      ...item,
+      createdAt: item.createdAt ?? Date.now(),
+    })
+  );
   await platform.storeLocal(QUEUE_KEY, queue);
 }
 
@@ -32,6 +66,14 @@ export async function removeFromQueue(id: string) {
     QUEUE_KEY,
     queue.filter((q) => q.id !== id)
   );
+}
+
+export async function discardQueuedItem(id: string) {
+  await removeFromQueue(id);
+}
+
+export async function clearQueue() {
+  await platform.storeLocal(QUEUE_KEY, []);
 }
 
 export async function blobToBase64(blob: Blob): Promise<string> {
@@ -66,6 +108,7 @@ export interface ExtractQueueResult {
 
 export interface ProcessQueueError {
   error: string;
+  code?: string;
 }
 
 export type ProcessQueueOutcome = ExtractQueueResult | ProcessQueueError;
@@ -81,10 +124,15 @@ export async function processQueue(
 ): Promise<ProcessQueueOutcome | null> {
   if (!platform.isOnline()) return null;
 
+  await purgeExpiredQueue();
   const queue = await getQueue();
   if (queue.length === 0) return null;
 
   const item = queue[0];
+  item.status = "processing";
+  item.attemptCount += 1;
+  await platform.storeLocal(QUEUE_KEY, queue);
+
   onProgress?.("Processing held offload…");
 
   try {
@@ -124,8 +172,15 @@ export async function processQueue(
     await removeFromQueue(item.id);
     return { ...result, createdIds };
   } catch {
+    const updated = await getQueue();
+    const current = updated.find((q) => q.id === item.id);
+    if (current) {
+      current.status = "failed";
+      await platform.storeLocal(QUEUE_KEY, updated);
+    }
     return {
       error: "Could not process your held offload. Try again when you are back online.",
+      code: "queue_process_failed",
     };
   }
 }

@@ -65,6 +65,10 @@ function FieldContent() {
     parked: number;
     total: number;
   } | null>(null);
+  const [summarySessionId, setSummarySessionId] = useState<string | null>(null);
+  const [summaryLoops, setSummaryLoops] = useState<
+    { id: string; state: string; weight: number; visualSeed: number; kind: "new" | "matched" }[]
+  >([]);
   const [newLoopIds, setNewLoopIds] = useState<Set<string>>(new Set());
   const [closingLoopId, setClosingLoopId] = useState<string | null>(null);
   const [closingAction, setClosingAction] = useState<"done" | "released" | null>(null);
@@ -173,6 +177,18 @@ function FieldContent() {
                   .map((l: LoopDTO) => l.id)
               );
         setNewLoopIds(newIds);
+        const allLoops = (data.loops ?? []) as LoopDTO[];
+        const marks = allLoops
+          .filter((l) => newIds.has(l.id))
+          .map((l) => ({
+            id: l.id,
+            state: l.state,
+            weight: l.weight,
+            visualSeed: l.visualSeed,
+            kind: "new" as const,
+          }));
+        setSummaryLoops(marks);
+        setSummarySessionId(session);
         setSummaryStats({
           new: newCount,
           matched: matchedCount,
@@ -403,7 +419,9 @@ function FieldContent() {
       <AnimatePresence>
         {showSummary && summaryStats && (
           <SessionSummary
+            sessionId={summarySessionId ?? undefined}
             stats={summaryStats}
+            sessionLoops={summaryLoops}
             onDismiss={() => setShowSummary(false)}
           />
         )}

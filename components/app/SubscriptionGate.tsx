@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const EXEMPT_PATHS = ["/subscribe", "/onboarding", "/settings"];
+const EXEMPT_PATHS = ["/subscribe", "/onboarding", "/settings", "/offload"];
 
 export function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,15 +24,22 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
-        // trialEndsAt is only set once Stripe checkout completes.
-        const needsCheckout = !data.trialEndsAt && data.subscriptionStatus === "trialing";
+        const needsCheckout =
+          data.freeOffloadUsed &&
+          data.freeActivationComplete &&
+          !data.trialEndsAt &&
+          data.subscriptionStatus === "trialing";
 
         if (needsCheckout && !pathname?.startsWith("/subscribe")) {
           router.replace("/subscribe");
           return;
         }
 
-        if (!data.onboardingComplete && !pathname?.startsWith("/onboarding") && data.trialEndsAt) {
+        if (
+          !data.onboardingComplete &&
+          !pathname?.startsWith("/onboarding") &&
+          (data.trialEndsAt || !data.freeOffloadUsed)
+        ) {
           router.replace("/onboarding");
           return;
         }

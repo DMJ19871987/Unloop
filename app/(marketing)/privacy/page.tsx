@@ -4,6 +4,8 @@ export const metadata = {
   title: "Privacy — Unloop",
 };
 
+const EFFECTIVE_DATE = "11 July 2026";
+
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-paper px-6 py-16">
@@ -11,43 +13,62 @@ export default function PrivacyPage() {
         <Link href="/" className="font-ui text-sm text-ink-faint hover:text-accent-selected mb-8 inline-block no-underline">
           ← Back
         </Link>
-        <h1 className="font-heading text-3xl font-medium text-ink mb-6">Privacy policy</h1>
+        <h1 className="font-heading text-3xl font-medium text-ink mb-2">Privacy policy</h1>
+        <p className="font-ui text-xs text-ink-faint mb-6">Effective {EFFECTIVE_DATE}</p>
 
         <div className="font-ui text-ink-muted space-y-4 text-sm leading-relaxed">
           <p>
-            Unloop is built around a simple promise: your thoughts are yours. We help you offload them, see them as loops, and set them down. We do not sell your data, train AI on your content, or keep your voice recordings.
+            <strong>Controller:</strong> Unloop (contact:{" "}
+            <a href="mailto:hello@unloop.app" className="text-accent-selected">hello@unloop.app</a>
+            ). We are the data controller for account, loop, and session data described below.
           </p>
 
           <h2 className="font-heading text-lg text-ink pt-4">What we collect</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Account data:</strong> email, timezone, notification preferences, billing status (via Stripe).</li>
+            <li><strong>Offload data:</strong> transcripts (optional), extracted loops, loop events, session metadata.</li>
+            <li><strong>Technical data:</strong> pseudonymous analytics (with consent), AI usage metrics without content.</li>
+          </ul>
           <p>
-            When you create an account, we store your email and preferences. When you offload, we transcribe your voice and extract loops from the transcript. The audio is discarded immediately — we never store recordings.
+            Audio is transcribed and not retained on Unloop servers. When offline, recordings may be held temporarily on your device for up to 24 hours until sent or discarded.
+          </p>
+
+          <h2 className="font-heading text-lg text-ink pt-4">Purposes and lawful bases</h2>
+          <p>
+            We process account and loop data to provide the service (contract, UK GDPR Article 6(1)(b)). Billing is processed to manage your subscription (contract). Optional analytics run only with consent (Article 6(1)(a)).
           </p>
           <p>
-            Transcripts are kept to help match loops across sessions (so &quot;the garden&quot; on Tuesday is the same loop as Sunday). You can disable transcript storage in settings.
+            Free-text offloads may include health-related content. We rely on your explicit consent to process this content for extraction (Article 9(2)(a)), given when you choose to offload. Crisis-flagged content is handled separately below. <em>Obtain legal review of the Article 6/9 basis before production launch.</em>
           </p>
 
           <h2 className="font-heading text-lg text-ink pt-4">Processors</h2>
           <p>
-            We use Neon (database), Vercel (hosting), Clerk (authentication), Stripe (payments), Anthropic and OpenAI (AI processing), PostHog EU (analytics), and Resend (email). Each processes data only to provide the service.
+            Clerk (authentication), Stripe (payments), Neon (database), Vercel (hosting), Anthropic and OpenAI (AI processing), Resend (email), PostHog EU (analytics, with consent). Data may be processed outside the UK; we use providers with appropriate safeguards.
           </p>
 
-          <h2 className="font-heading text-lg text-ink pt-4">AI and training</h2>
+          <h2 className="font-heading text-lg text-ink pt-4">Retention</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>Loops and account data: until you delete your account.</li>
+            <li>Transcripts: while your account exists, unless you disable storage.</li>
+            <li>Crisis-flagged transcripts: up to 30 days, then permanently deleted.</li>
+            <li>Offline queue audio: up to 24 hours on your device only.</li>
+            <li>Analytics: pseudonymous events per PostHog retention settings.</li>
+          </ul>
+
+          <h2 className="font-heading text-lg text-ink pt-4">Automated processing</h2>
           <p>
-            Your thoughts are never used to train AI models. Transcripts and loops are sent to AI providers only for extraction and summaries, then stored in your account.
+            AI extracts loops from transcripts. This is not a medical or diagnostic assessment. You can review and correct proposals before they are applied.
           </p>
 
           <h2 className="font-heading text-lg text-ink pt-4">Your rights</h2>
           <p>
-            Under UK GDPR, you can export all your data or delete your account entirely from settings. Deletion is permanent and removes your loops, events, transcripts, and account.
+            Under UK GDPR you may access, export, rectify, or erase your data. Export and delete are available in Settings. You may complain to the ICO:{" "}
+            <a href="https://ico.org.uk" className="text-accent-selected" target="_blank" rel="noopener noreferrer">ico.org.uk</a>.
           </p>
 
           <h2 className="font-heading text-lg text-ink pt-4">Crisis-flagged transcripts</h2>
           <p>
-            If our safety checks flag content relating to self-harm or harm to others, we retain the
-            transcript for up to 30 days before permanently deleting it. This retention supports
-            safety review and is handled as special-category health data under UK GDPR. We do not use
-            crisis-flagged transcripts for AI training or product improvement. See our terms for how
-            Unloop relates to professional support.
+            If safety checks flag content relating to self-harm or harm to others, we retain the transcript for up to 30 days before permanent deletion. Crisis-flagged transcripts are not used for AI training or product improvement.
           </p>
 
           <h2 className="font-heading text-lg text-ink pt-4">Contact</h2>

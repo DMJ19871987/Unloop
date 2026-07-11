@@ -8,6 +8,7 @@ import { loops, loopEvents, offloadSessions } from "@/lib/db/schema";
 import { transitionLoop, toLoopDTO } from "@/lib/loops/transitions";
 import { canTransition } from "@/lib/loops/state";
 import { stateForGravityZone } from "@/lib/loops/gravity";
+import { markFreeActivationIfNeeded } from "@/lib/auth/activation";
 import type { ClosureAction } from "@/lib/types/loop";
 
 const actionSchema = z
@@ -218,6 +219,8 @@ export async function PATCH(
           note: eventNote,
         });
 
+        await markFreeActivationIfNeeded(db, user, existing.state, toState);
+
         return row;
       });
 
@@ -267,6 +270,10 @@ export async function PATCH(
       return NextResponse.json({ loop: toLoopDTO(updated) });
     }
 
+    const existingForAction = await db.query.loops.findFirst({
+      where: and(eq(loops.id, id), eq(loops.userId, user.id)),
+    });
+
     const updated = await transitionLoop(
       db,
       user.id,
@@ -280,6 +287,15 @@ export async function PATCH(
         note: data.note,
       }
     );
+
+    if (existingForAction) {
+      await markFreeActivationIfNeeded(
+        db,
+        user,
+        existingForAction.state,
+        updated.state
+      );
+    }
 
     return NextResponse.json({ loop: toLoopDTO(updated) });
   } catch (error) {

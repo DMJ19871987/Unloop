@@ -11,6 +11,8 @@ import {
 } from "@/components/marketing/Hero";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 
+import { AnalyticsConsent } from "@/components/marketing/AnalyticsConsent";
+
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-paper">
@@ -24,6 +26,7 @@ export default function LandingPage() {
       <PricingSection />
       <FaqSection />
       <Footer />
+      <AnalyticsConsent />
     </main>
   );
 }

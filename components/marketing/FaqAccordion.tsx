@@ -9,7 +9,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What happens to my audio?",
-    a: "Your voice is transcribed and the audio is immediately deleted. We never store recordings. Only the transcript is kept, and you can turn that off in settings.",
+    a: "Your voice is transcribed and not stored on our servers. When you are offline, a recording may wait on your device for up to 24 hours until it is sent or you discard it. Transcripts can be kept to match loops across sessions — you can turn that off in settings.",
   },
   {
     q: "Can I type instead of speaking?",

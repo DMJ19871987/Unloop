@@ -1,9 +1,16 @@
-type AnalyticsEvent =
-  | "trial_started"
-  | "subscription_converted"
-  | "subscription_canceled"
-  | "account_deleted"
-  | "waitlist_signup";
+const ALLOWED_SERVER_EVENTS = [
+  "trial_started",
+  "subscription_converted",
+  "subscription_canceled",
+  "account_deleted",
+  "waitlist_signup",
+  "checkout_started",
+  "checkout_completed",
+  "checkout_failed",
+  "first_loop_action",
+] as const;
+
+type AnalyticsEvent = (typeof ALLOWED_SERVER_EVENTS)[number];
 
 export async function trackServer(
   event: AnalyticsEvent,

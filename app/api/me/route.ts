@@ -5,6 +5,7 @@ import { getOrCreateUser } from "@/lib/auth/user";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
 import { getStripe } from "@/lib/stripe/config";
+import { cancelStripeBilling } from "@/lib/billing/reconcile-subscription";
 
 export async function GET() {
   const user = await getOrCreateUser();
@@ -12,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
   }
 
-  const { getSubscriptionAccess } = await import("@/lib/auth/subscription");
+  const { getSubscriptionAccess: getAccess } = await import("@/lib/auth/subscription");
 
   return NextResponse.json({
     email: user.email,
@@ -23,11 +24,13 @@ export async function GET() {
     notificationFrequency: user.notificationFrequency,
     keepTranscripts: user.keepTranscripts,
     subscriptionStatus: user.subscriptionStatus,
-    subscriptionAccess: getSubscriptionAccess(user),
+    subscriptionAccess: getAccess(user),
     stripeCustomerId: user.stripeCustomerId,
     trialEndsAt: user.trialEndsAt,
     sessionsCompleted: user.sessionsCompleted,
     onboardingComplete: user.onboardingComplete,
+    freeOffloadUsed: user.freeOffloadUsed,
+    freeActivationComplete: user.freeActivationComplete,
   });
 }
 
@@ -75,16 +78,22 @@ export async function DELETE(request: Request) {
 
   const stripe = getStripe();
   if (stripe && user.stripeCustomerId) {
-    try {
-      await stripe.customers.del(user.stripeCustomerId);
-    } catch {
-      // Continue deletion even if Stripe fails
+    const billing = await cancelStripeBilling(stripe, user.stripeCustomerId);
+    if (!billing.ok) {
+      console.error(`account_delete stripe_failed user_id=${user.id}`);
+      return NextResponse.json(
+        {
+          error:
+            "We could not cancel your billing yet. Your account and data are unchanged. Please try again or contact support.",
+          code: "stripe_failed",
+        },
+        { status: 502 }
+      );
     }
   }
 
   const { deletePostHogPerson, trackServer } = await import("@/lib/analytics-server");
   await trackServer("account_deleted", user.clerkId);
-  await deletePostHogPerson(user.clerkId);
 
   await db.delete(users).where(eq(users.id, user.id));
 
@@ -97,9 +106,12 @@ export async function DELETE(request: Request) {
         await client.users.deleteUser(userId);
       }
     } catch {
-      // DB cascade is the source of truth
+      console.error(`account_delete clerk_failed user_id=${user.id}`);
     }
   }
+
+  await deletePostHogPerson(user.clerkId);
+  console.info(`account_delete success user_id=${user.id}`);
 
   return NextResponse.json({ success: true });
 }

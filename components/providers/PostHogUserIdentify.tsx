@@ -9,7 +9,7 @@ export function PostHogUserIdentify() {
 
   useEffect(() => {
     if (!isLoaded || !user) return;
-    identifyUser(user.id, user.primaryEmailAddress?.emailAddress);
+    identifyUser(user.id);
   }, [isLoaded, user]);
 
   return null;

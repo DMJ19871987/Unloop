@@ -27,9 +27,21 @@ export interface LayoutOptions {
   height: number;
   visibleCount?: number;
   leftInset?: number;
+  slotMinWidth?: number;
 }
 
 const GRAVITY_ORDER: GravityZone[] = ["ready", "clarify", "waiting"];
+
+function seededUnit(item: LayoutLoop, salt: number): number {
+  let hash = (item.visualSeed ?? 0) ^ salt;
+  for (let index = 0; index < item.id.length; index++) {
+    hash = Math.imul(hash ^ item.id.charCodeAt(index), 16777619);
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  return (hash >>> 0) / 4294967295;
+}
 
 function loopPriority(state: LoopState, weight: number): number {
   const order: Record<LoopState, number> = {
@@ -127,8 +139,8 @@ export function selectVisibleFieldLoops<T extends LayoutLoop>(
 }
 
 /**
- * Stable lane layout. Every loop owns a deterministic slot inside its gravity
- * band, so resizing cannot preserve stale physics or drag coordinates.
+ * Stable organic lane layout. Every loop owns a deterministic, seeded position
+ * inside its gravity band, so resizing cannot preserve stale drag coordinates.
  */
 export function computeLoopLayout(
   items: LayoutLoop[],
@@ -152,9 +164,10 @@ export function computeLoopLayout(
   const contentWidth = contentRight - contentLeft;
   const laneHeight = height / GRAVITY_ORDER.length;
   const compact = width < 640;
-  const slotMinWidth = compact ? 112 : width < 1024 ? 160 : 210;
+  const slotMinWidth = options?.slotMinWidth ?? (compact ? 112 : width < 1024 ? 160 : 210);
   const maxColumns = Math.max(1, Math.floor(contentWidth / slotMinWidth));
   const labelHeight = compact ? 28 : 24;
+  const labelWidth = fieldLabelMaxWidth(width);
 
   const grouped = new Map<GravityZone, LayoutLoop[]>();
   for (const zone of GRAVITY_ORDER) grouped.set(zone, []);
@@ -189,11 +202,19 @@ export function computeLoopLayout(
       const contentHeight = circleSize + 4 + labelHeight;
       const cellTop = zoneIndex * laneHeight + row * cellHeight;
       const topPadding = Math.max(4, (cellHeight - contentHeight) / 2);
+      const baseX = rowStart + (column + 0.5) * cellWidth;
+      const baseY = cellTop + topPadding + contentHeight / 2;
+      const horizontalRoom = Math.max(0, (cellWidth - Math.max(circleSize, labelWidth)) / 2 - 6);
+      const verticalRoom = Math.max(0, (cellHeight - contentHeight) / 2 - 5);
+      const maxXOffset = Math.min(compact ? 12 : width < 1024 ? 28 : 64, horizontalRoom);
+      const maxYOffset = Math.min(compact ? 7 : width < 1024 ? 18 : 32, verticalRoom);
+      const xOffset = (seededUnit(item, 0x51f15e) * 2 - 1) * maxXOffset;
+      const yOffset = (seededUnit(item, 0x9e3779) * 2 - 1) * maxYOffset;
 
       positions.push({
         id: item.id,
-        x: rowStart + (column + 0.5) * cellWidth,
-        y: cellTop + topPadding + contentHeight / 2,
+        x: baseX + xOffset,
+        y: baseY + yOffset,
         labelPosition: "below",
       });
     });

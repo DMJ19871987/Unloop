@@ -41,6 +41,8 @@ export const users = pgTable("users", {
   pastDueSince: timestamp("past_due_since"),
   lastCheckinSentAt: timestamp("last_checkin_sent_at"),
   trialReminderSentAt: timestamp("trial_reminder_sent_at"),
+  freeOffloadUsed: boolean("free_offload_used").default(false).notNull(),
+  freeActivationComplete: boolean("free_activation_complete").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -57,6 +59,8 @@ export const offloadSessions = pgTable(
     loopsExtracted: integer("loops_extracted").default(0),
     loopsMatched: integer("loops_matched").default(0),
     crisis: boolean("crisis").default(false),
+    sessionOutcome: text("session_outcome"),
+    sessionOutcomeAt: timestamp("session_outcome_at"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (t) => [index("sessions_user_idx").on(t.userId, t.createdAt)]
@@ -140,3 +144,26 @@ export const foundingMemberCounter = pgTable("founding_member_counter", {
   id: text("id").primaryKey().default("default"),
   soldCount: integer("sold_count").notNull().default(0),
 });
+
+export const stripeWebhookEvents = pgTable("stripe_webhook_events", {
+  id: text("id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+  failureSummary: text("failure_summary"),
+});
+
+export const lifecycleDeliveries = pgTable(
+  "lifecycle_deliveries",
+  {
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    jobType: text("job_type").notNull(),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    lastSuccessAt: timestamp("last_success_at"),
+    failureCount: integer("failure_count").default(0).notNull(),
+  },
+  (t) => [index("lifecycle_deliveries_user_idx").on(t.userId, t.jobType)]
+);

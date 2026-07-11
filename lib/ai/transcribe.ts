@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { logAiUsage } from "./log";
+import { estimateTranscriptionCostUsd } from "./cost";
 
 export function isMockTranscribeEnabled(): boolean {
   return process.env.MOCK_AI === "true" || !process.env.OPENAI_API_KEY;
@@ -45,7 +46,7 @@ export async function transcribeAudio(
     provider: "openai",
     operation,
     audioSeconds: durationSeconds,
-    estCostUsd: 0.006,
+    estCostUsd: estimateTranscriptionCostUsd(durationSeconds),
   });
 
   return {

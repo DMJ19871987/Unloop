@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { LoopCircle } from "@/components/field/LoopCircle";
-import { computeLoopLayout } from "@/lib/loops/layout";
+import {
+  computeLoopLayout,
+  fieldLabelMaxWidth,
+  fieldLayoutCircleSize,
+} from "@/lib/loops/layout";
 
 const DEMO_TRANSCRIPT =
   "I keep thinking about the job application and whether I should message Tom about Saturday. The garden needs sorting. I need to call the bank about that charge. Mum's birthday is coming up and I haven't planned anything.";
@@ -100,7 +104,11 @@ export function HeroFieldDemo() {
       })),
       fieldSize.width,
       fieldSize.height - 28,
-      { visibleCount: DEMO_LOOPS.length }
+      {
+        visibleCount: DEMO_LOOPS.length,
+        leftInset: 0,
+        slotMinWidth: fieldSize.width < 380 ? 92 : 112,
+      }
     );
     return new Map(layout.map((p) => [p.id, p]));
   }, [fieldSize]);
@@ -142,7 +150,7 @@ export function HeroFieldDemo() {
   const showLoops = phase !== "transcript";
 
   return (
-    <div className="relative w-full aspect-[4/5] max-w-md mx-auto bg-paper rounded-2xl overflow-hidden border border-border shadow-subtle">
+    <div className="relative w-full h-[500px] sm:h-auto sm:aspect-[4/5] max-w-md mx-auto bg-paper rounded-2xl overflow-hidden border border-border shadow-subtle">
       <div className="absolute inset-0 p-6 flex flex-col">
         <AnimatePresence mode="wait">
           {showTranscript && (
@@ -166,22 +174,29 @@ export function HeroFieldDemo() {
           )}
         </AnimatePresence>
 
-        {showLoops && (
-          <motion.div
-            ref={fieldRef}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1.2 }}
-            className="relative flex-1 w-full min-h-0"
-          >
-            {DEMO_LOOPS.map((loop, i) => {
+        <div ref={fieldRef} className="relative flex-1 w-full min-h-0">
+          <AnimatePresence>
+            {showLoops && (
+              <motion.div
+                key="loops"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2 }}
+                className="absolute inset-0"
+              >
+                {DEMO_LOOPS.map((loop, i) => {
               const pos = positions.get(loop.id);
               const isClosing = CLOSING_LOOP_ID === loop.id;
               const centerX = fieldSize.width / 2;
               const centerY = (fieldSize.height - 28) / 2;
+              const circleSize = Math.min(
+                fieldLayoutCircleSize(loop, fieldSize.width, DEMO_LOOPS.length),
+                fieldSize.width < 380 ? 36 : Number.POSITIVE_INFINITY
+              );
 
               return (
-                <motion.div
+                <div
                   key={loop.id}
                   className="absolute"
                   style={{
@@ -189,36 +204,44 @@ export function HeroFieldDemo() {
                     top: pos?.y ?? centerY,
                     transform: "translate(-50%, -50%)",
                   }}
-                  initial={{ opacity: 0, scale: 0.3 }}
-                  animate={{
-                    opacity: isClosing && phase === "close" ? 0.3 : 1,
-                    scale: 1,
-                  }}
-                  transition={{
-                    delay: i * 0.15,
-                    duration: 0.8,
-                    ease: "easeOut",
-                  }}
                 >
-                  <LoopCircle
-                    label={loop.label}
-                    state={loop.state}
-                    weight={loop.weight}
-                    emotionalIntensity={loop.emotionalIntensity}
-                    visualSeed={loop.visualSeed}
-                    animateArc={isClosing && phase === "close" ? 1 : undefined}
-                    drift={phase === "drift" || reducedMotion === true}
-                    showLabel
-                    labelPosition={pos?.labelPosition ?? "below"}
-                    labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
-                    visibleCount={DEMO_LOOPS.length}
-                    forField
-                  />
-                </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.3 }}
+                    animate={{
+                      opacity: isClosing && phase === "close" ? 0.3 : 1,
+                      scale: 1,
+                    }}
+                    transition={{
+                      delay: i * 0.15,
+                      duration: 0.8,
+                      ease: "easeOut",
+                    }}
+                  >
+                    <LoopCircle
+                      label={loop.label}
+                      state={loop.state}
+                      weight={loop.weight}
+                      emotionalIntensity={loop.emotionalIntensity}
+                      visualSeed={loop.visualSeed}
+                      size={circleSize}
+                      animateArc={isClosing && phase === "close" ? 1 : undefined}
+                      drift={phase === "drift" || reducedMotion === true}
+                      showLabel
+                      labelPosition={pos?.labelPosition ?? "below"}
+                      labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
+                      labelMaxWidth={fieldLabelMaxWidth(fieldSize.width)}
+                      compactLabel={fieldSize.width < 380}
+                      visibleCount={DEMO_LOOPS.length}
+                      forField
+                    />
+                  </motion.div>
+                </div>
               );
-            })}
-          </motion.div>
-        )}
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">

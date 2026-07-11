@@ -107,8 +107,15 @@ export function computeLoopLayout(
 
   const visibleCount = options?.visibleCount ?? items.length;
   const leftInset = Math.max(0, options?.leftInset ?? fieldRailWidth(width));
-  const contentLeft = leftInset + VIEWPORT_MARGIN;
-  const contentRight = Math.max(contentLeft + 1, width - VIEWPORT_MARGIN);
+  const usableWidth = Math.max(1, width - leftInset);
+  const horizontalGutter =
+    width < 640
+      ? VIEWPORT_MARGIN
+      : width < 1024
+        ? 32
+        : Math.max(48, (usableWidth - 1240) / 2);
+  const contentLeft = leftInset + horizontalGutter;
+  const contentRight = Math.max(contentLeft + 1, width - horizontalGutter);
   const contentWidth = contentRight - contentLeft;
   const laneHeight = height / GRAVITY_ORDER.length;
   const compact = width < 640;

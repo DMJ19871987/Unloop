@@ -60,6 +60,10 @@ describe("meaningful gravity", () => {
       for (const position of layout) {
         assert.ok(position.x > 0 && position.x < width);
       }
+      if (width >= 1180) {
+        assert.ok(Math.min(...layout.map((position) => position.x)) > 240);
+        assert.ok(Math.max(...layout.map((position) => position.x)) < width - 80);
+      }
       assert.ok(byId.get("r1")!.y < height / 3);
       assert.ok(byId.get("r2")!.y < height / 3);
       assert.ok(byId.get("c1")!.y >= height / 3 && byId.get("c1")!.y < (height * 2) / 3);

@@ -523,7 +523,7 @@ export function LoopField({
 
       <Link
         href="/offload"
-        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-20 -translate-x-1/2 focus:outline-none sm:bottom-7 sm:left-auto sm:right-8 sm:translate-x-0"
+        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-20 -translate-x-1/2 focus:outline-none sm:bottom-8 sm:left-auto sm:right-10 sm:translate-x-0 lg:right-14"
         aria-label="Empty your head"
       >
         <motion.div

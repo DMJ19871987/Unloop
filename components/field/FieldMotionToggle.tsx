@@ -20,7 +20,11 @@ export function FieldMotionToggle({ mode, onChange }: FieldMotionToggleProps) {
           type="button"
           onClick={() => onChange(option)}
           aria-pressed={mode === option}
-          title={option === "fixed" ? "Keep loops settled" : "Let loops move and interact"}
+          title={
+            option === "fixed"
+              ? "Keep the composition settled with subtle movement"
+              : "Let loops move and interact"
+          }
           className={`min-h-[30px] rounded-full px-2.5 capitalize transition sm:px-3 ${
             mode === option
               ? "bg-paper text-accent-selected shadow-sm"

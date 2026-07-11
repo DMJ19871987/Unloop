@@ -117,7 +117,7 @@ function MiniField() {
 function MovementDemo() {
   const [mode, setMode] = useState<FieldMotionMode>("fixed");
   const reducedMotion = useReducedMotion();
-  const moving = mode === "float" && reducedMotion !== true;
+  const canMove = reducedMotion !== true;
   const loops = [
     { label: "Decision", x: "18%", y: "25%", seed: 81, delay: 0 },
     { label: "Email Alex", x: "51%", y: "52%", seed: 93, delay: 1.4 },
@@ -139,17 +139,22 @@ function MovementDemo() {
             className="absolute"
             style={{ left: loop.x, top: loop.y }}
             animate={
-              moving
+              !canMove
+                ? { x: 0, y: 0 }
+                : mode === "float"
                 ? {
                     x: index === 1 ? [0, 18, -12, 8, 0] : [0, -14, 16, -6, 0],
                     y: index === 1 ? [0, -9, 12, -5, 0] : [0, 10, -7, 6, 0],
                   }
-                : { x: 0, y: 0 }
+                : {
+                    x: [0, 2, -2, 1, 0],
+                    y: [0, -2, 2, -1, 0],
+                  }
             }
             transition={{
-              duration: 18 + index * 3,
+              duration: mode === "float" ? 18 + index * 3 : 30 + index * 2,
               delay: loop.delay,
-              repeat: moving ? Infinity : 0,
+              repeat: canMove ? Infinity : 0,
               ease: "easeInOut",
             }}
           >
@@ -278,7 +283,7 @@ export function FieldGuide() {
             <Eyebrow>Movement</Eyebrow>
             <h2 className="mt-2 font-heading text-2xl text-ink">Settled or gently alive</h2>
             <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">
-              Fixed keeps the force-settled composition still. Float lets loops slowly move, make room for one another, and return towards their own area.
+              Fixed keeps the force-settled composition in place with a subtle breathing drift. Float lets loops travel, make room for one another, and return towards their own area.
             </p>
             <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">
               Movement changes the atmosphere only. It never changes a loop&apos;s meaning or state.

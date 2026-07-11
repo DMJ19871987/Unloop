@@ -488,6 +488,12 @@ export function LoopField({
                         size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
                         animateArc={isClosing ? 1 : undefined}
                         closingMode={isClosing ? closingAction ?? undefined : undefined}
+                        drift={
+                          fieldMotion === "fixed" &&
+                          reducedMotion !== true &&
+                          !isClosing &&
+                          draggingId !== loop.id
+                        }
                         labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
                         labelPosition={pos?.labelPosition ?? "below"}
                         visibleCount={visibleLoops.length}

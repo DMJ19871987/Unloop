@@ -4,7 +4,11 @@ import {
   gravityZoneForState,
   stateForGravityZone,
 } from "./gravity";
-import { computeLoopLayout, fieldLayoutCircleSize } from "./layout";
+import {
+  computeLoopLayout,
+  fieldLayoutCircleSize,
+  selectVisibleFieldLoops,
+} from "./layout";
 
 describe("meaningful gravity", () => {
   it("maps active loop states to visible gravity zones", () => {
@@ -81,5 +85,44 @@ describe("meaningful gravity", () => {
       computeLoopLayout(loops, 1280, 720),
       computeLoopLayout(loops, 1280, 720)
     );
+  });
+
+  it("keeps dense mobile loops clear of their lane boundaries", () => {
+    const loops = Array.from({ length: 4 }, (_, index) => ({
+      id: `clarify-${index}`,
+      state: "open_attention" as const,
+      weight: 4,
+      emotionalIntensity: 3,
+    }));
+    const width = 390;
+    const height = 570;
+    const laneTop = height / 3;
+    const layout = computeLoopLayout(loops, width, height, { visibleCount: 4 });
+    const contentHeight =
+      fieldLayoutCircleSize(loops[0], width, loops.length) + 4 + 28;
+
+    for (const position of layout) {
+      assert.ok(position.y - contentHeight / 2 >= laneTop + 4);
+      assert.ok(position.y + contentHeight / 2 <= (height * 2) / 3 - 4);
+    }
+  });
+
+  it("caps each mobile lane without hiding the preferred moved loop", () => {
+    const loops = Array.from({ length: 10 }, (_, index) => ({
+      id: `clarify-${index}`,
+      state: "open_attention" as const,
+      weight: index === 9 ? 1 : 4,
+      emotionalIntensity: 2,
+      visualSeed: index,
+    }));
+    const result = selectVisibleFieldLoops(loops, {
+      perZoneCap: 4,
+      totalCap: 12,
+      preferredId: "clarify-9",
+    });
+
+    assert.equal(result.visible.length, 4);
+    assert.equal(result.collapsed.length, 6);
+    assert.ok(result.visible.some((loop) => loop.id === "clarify-9"));
   });
 });

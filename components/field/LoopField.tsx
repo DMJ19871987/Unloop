@@ -14,7 +14,7 @@ import {
   fieldLabelMaxWidth,
   fieldLayoutCircleSize,
   fieldRailWidth,
-  partitionFieldLoops,
+  selectVisibleFieldLoops,
 } from "@/lib/loops/layout";
 import {
   GRAVITY_ZONES,
@@ -94,52 +94,16 @@ export function LoopField({
   const leftInset = fieldRailWidth(fieldSize.width);
   const labelMaxWidth = fieldLabelMaxWidth(fieldSize.width);
 
-  const { visibleLoops, collapsedLoops, collapsedCount, clusterLabel } = useMemo(() => {
-    const { visible } = partitionFieldLoops(
-      loops.map((l) => ({
-        id: l.id,
-        state: l.state,
-        weight: l.weight,
-        emotionalIntensity: l.emotionalIntensity,
-        label: l.label,
-        visualSeed: l.visualSeed,
-      })),
-      false
-    );
-
-    const visibleCap = fieldSize.width < 640 ? 8 : fieldSize.width < 1024 ? 12 : 14;
-    let cappedVisible = visible.slice(0, visibleCap);
-    const preferred = preferredVisibleId
-      ? loops.find((loop) => loop.id === preferredVisibleId)
-      : null;
-
-    if (preferred && !cappedVisible.some((item) => item.id === preferred.id)) {
-      const preferredLayout = {
-        id: preferred.id,
-        state: preferred.state,
-        weight: preferred.weight,
-        emotionalIntensity: preferred.emotionalIntensity,
-        label: preferred.label,
-        visualSeed: preferred.visualSeed,
-      };
-      cappedVisible =
-        cappedVisible.length >= visibleCap
-          ? [...cappedVisible.slice(0, -1), preferredLayout]
-          : [...cappedVisible, preferredLayout];
-    }
-
-    const visibleIds = new Set(cappedVisible.map((item) => item.id));
-    const hidden = loops.filter((loop) => !visibleIds.has(loop.id));
-
-    const allParked =
-      hidden.length > 0 && hidden.every((item) => item.state === "parked");
-    const label = allParked ? `${hidden.length} parked` : `${hidden.length} more`;
-
+  const { visibleLoops, collapsedLoops, collapsedCount } = useMemo(() => {
+    const { visible, collapsed } = selectVisibleFieldLoops(loops, {
+      perZoneCap: fieldSize.width < 640 ? 4 : fieldSize.width < 1024 ? 6 : 8,
+      totalCap: fieldSize.width < 640 ? 12 : 14,
+      preferredId: preferredVisibleId,
+    });
     return {
-      visibleLoops: loops.filter((l) => visibleIds.has(l.id)),
-      collapsedLoops: hidden,
-      collapsedCount: hidden.length,
-      clusterLabel: label,
+      visibleLoops: visible,
+      collapsedLoops: collapsed,
+      collapsedCount: collapsed.length,
     };
   }, [fieldSize.width, loops, preferredVisibleId]);
 
@@ -263,6 +227,15 @@ export function LoopField({
           </p>
           <h1 className="font-heading text-[24px] font-medium leading-tight text-ink sm:text-[26px]">Occupying you</h1>
           <SummaryBar loops={loops} />
+          {collapsedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowCollapsedCluster(true)}
+              className="mt-2 min-h-[36px] font-ui text-[11px] text-accent-selected transition hover:text-accent"
+            >
+              {collapsedCount} more in your field
+            </button>
+          )}
         </div>
         <FieldToggle view="occupying" />
       </header>
@@ -280,9 +253,13 @@ export function LoopField({
                 else zoneRefs.current.delete(zone.id);
               }}
               className={`absolute inset-x-0 transition-colors ${
-                index < GRAVITY_ZONES.length - 1 ? "border-b border-border-soft/60" : ""
+                index < GRAVITY_ZONES.length - 1 ? "border-b" : ""
               }`}
-              style={{ top: `${index * 33.333}%`, height: "33.334%" }}
+              style={{
+                top: `${index * 33.333}%`,
+                height: "33.334%",
+                borderColor: "var(--field-rule)",
+              }}
             >
               <div
                 className={`absolute inset-y-0 right-0 transition-colors ${
@@ -291,12 +268,12 @@ export function LoopField({
                 style={{ left: leftInset }}
               />
               <div
-                className={`absolute inset-y-0 left-0 flex flex-col justify-center border-r border-border-soft/70 bg-paper/20 px-3 transition-colors lg:px-5 ${
+                className={`absolute inset-y-0 left-0 flex flex-col justify-center border-r bg-paper/20 px-3 transition-colors lg:px-5 ${
                   draggingId && dropZone === zone.id
                     ? "bg-accent-tint/45 text-accent-selected"
                     : "text-ink-placeholder"
                 }`}
-                style={{ width: leftInset }}
+                style={{ width: leftInset, borderColor: "var(--field-rule)" }}
               >
                 <span className="font-ui text-[9px] font-medium uppercase leading-tight tracking-[1.2px] sm:text-[10px] lg:text-[11px]">
                   {compact ? zone.shortLabel : zone.label}
@@ -456,36 +433,8 @@ export function LoopField({
           </AnimatePresence>
         )}
 
-        {collapsedCount > 0 && !showCollapsedCluster && (
-          <button
-            type="button"
-            onClick={() => setShowCollapsedCluster(true)}
-            className="absolute right-4 bottom-28 flex items-center gap-2 glass-panel rounded-full px-3 py-2 min-h-[48px] transition hover:-translate-y-0.5"
-            aria-label={`${clusterLabel}, tap to expand`}
-          >
-            <span className="flex -space-x-1.5" aria-hidden>
-              {collapsedLoops.slice(0, 3).map((l) => (
-                <LoopCircle
-                  key={l.id}
-                  state={l.state}
-                  weight={l.weight}
-                  emotionalIntensity={l.emotionalIntensity}
-                  visualSeed={l.visualSeed}
-                  size={18}
-                  showLabel={false}
-                  forField
-                  visibleCount={visibleLoops.length}
-                />
-              ))}
-            </span>
-            <span className="font-ui text-xs text-ink-faint whitespace-nowrap">
-              {clusterLabel}
-            </span>
-          </button>
-        )}
-
         {collapsedCount > 0 && showCollapsedCluster && (
-          <div className="glass-panel absolute inset-x-4 bottom-24 z-30 max-h-[330px] overflow-y-auto rounded-[24px] p-3 shadow-float">
+          <div className="glass-panel absolute inset-x-4 bottom-4 z-30 max-h-[420px] overflow-y-auto rounded-[24px] p-3 shadow-float sm:bottom-8">
             <div className="sticky top-0 z-10 flex items-center justify-between bg-sheet/90 px-2 pb-2 pt-1 backdrop-blur">
               <div>
                 <p className="font-ui text-[10px] uppercase tracking-[2px] text-ink-placeholder">Field index</p>
@@ -520,22 +469,6 @@ export function LoopField({
           </div>
         )}
       </div>
-
-      <Link
-        href="/offload"
-        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-20 -translate-x-1/2 focus:outline-none sm:bottom-8 sm:left-auto sm:right-10 sm:translate-x-0 lg:right-14"
-        aria-label="Empty your head"
-      >
-        <motion.div
-          className="w-[68px] h-[68px] rounded-full bg-accent-breathe border border-accent/30 flex items-center justify-center shadow-float backdrop-blur"
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.94 }}
-        >
-          <div className="w-10 h-10 rounded-full bg-accent-button shadow-[var(--shadow-inset)]" />
-        </motion.div>
-      </Link>
 
       <LoopDetailSheet
         loop={selected}

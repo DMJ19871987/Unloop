@@ -20,6 +20,7 @@
   --sheet: #fcfaf6;
   --border: #e3d9cd;
   --border-soft: #eadfd2;
+  --field-rule: rgba(74, 64, 56, 0.16);
   --field-glow: rgba(196, 99, 62, 0.13);
   --field-mist: rgba(104, 124, 111, 0.12);
   --shadow-soft: 0 16px 50px rgba(67, 51, 38, 0.12);
@@ -47,6 +48,7 @@
   --sheet: #252220;
   --border: #3d3834;
   --border-soft: #332e2a;
+  --field-rule: rgba(237, 231, 223, 0.12);
   --field-glow: rgba(184, 106, 74, 0.18);
   --field-mist: rgba(151, 168, 150, 0.1);
   --shadow-soft: 0 16px 50px rgba(0, 0, 0, 0.28);

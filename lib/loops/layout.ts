@@ -93,6 +93,39 @@ export function partitionFieldLoops<T extends LayoutLoop & { label?: string }>(
   };
 }
 
+export function selectVisibleFieldLoops<T extends LayoutLoop>(
+  loops: T[],
+  options: { perZoneCap: number; totalCap: number; preferredId?: string | null }
+): { visible: T[]; collapsed: T[] } {
+  const grouped = new Map<GravityZone, T[]>();
+  for (const zone of GRAVITY_ORDER) grouped.set(zone, []);
+  for (const loop of loops) grouped.get(gravityZoneForState(loop.state))?.push(loop);
+
+  grouped.forEach((group) => {
+    group.sort(
+      (a, b) =>
+        (a.id === options.preferredId ? -1 : b.id === options.preferredId ? 1 : 0) ||
+        loopPriority(a.state, a.weight) - loopPriority(b.state, b.weight) ||
+        (a.visualSeed ?? 0) - (b.visualSeed ?? 0) ||
+        a.id.localeCompare(b.id)
+    );
+  });
+
+  const selected: T[] = [];
+  for (let round = 0; round < options.perZoneCap; round++) {
+    for (const zone of GRAVITY_ORDER) {
+      const candidate = grouped.get(zone)?.[round];
+      if (candidate && selected.length < options.totalCap) selected.push(candidate);
+    }
+  }
+
+  const selectedIds = new Set(selected.map((loop) => loop.id));
+  return {
+    visible: loops.filter((loop) => selectedIds.has(loop.id)),
+    collapsed: loops.filter((loop) => !selectedIds.has(loop.id)),
+  };
+}
+
 /**
  * Stable lane layout. Every loop owns a deterministic slot inside its gravity
  * band, so resizing cannot preserve stale physics or drag coordinates.
@@ -160,7 +193,7 @@ export function computeLoopLayout(
       positions.push({
         id: item.id,
         x: rowStart + (column + 0.5) * cellWidth,
-        y: cellTop + topPadding + circleSize / 2,
+        y: cellTop + topPadding + contentHeight / 2,
         labelPosition: "below",
       });
     });

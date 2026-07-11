@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const EXEMPT_PATHS = ["/subscribe", "/onboarding", "/settings", "/offload"];
+const EXEMPT_PATHS = ["/subscribe", "/onboarding", "/settings", "/offload", "/guide"];
 
 export function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

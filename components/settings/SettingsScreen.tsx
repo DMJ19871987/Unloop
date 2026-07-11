@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { track, withdrawConsent, setConsentState, getConsentState } from "@/lib/analytics";
@@ -181,6 +182,19 @@ export function SettingsScreen() {
           </div>
         </div>
       )}
+
+      <section className="space-y-3 glass-panel rounded-[24px] p-5">
+        <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">Field guide</h2>
+        <p className="font-ui text-sm leading-relaxed text-ink-muted">
+          Read loop marks, gravity bands, movement modes, and the history inside each loop.
+        </p>
+        <Link
+          href="/guide"
+          className="inline-flex min-h-[48px] items-center font-ui text-sm text-accent-selected transition hover:text-accent-hover"
+        >
+          Open the field guide
+        </Link>
+      </section>
 
       <section className="space-y-3 glass-panel rounded-[24px] p-5">
         <h2 className="font-ui text-xs uppercase tracking-widest text-ink-faint">Appearance</h2>

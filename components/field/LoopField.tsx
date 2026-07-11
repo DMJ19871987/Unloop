@@ -290,7 +290,17 @@ export function LoopField({
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <FieldToggle view="occupying" />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/guide"
+              aria-label="Open the field guide"
+              title="Field guide"
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border/70 bg-sheet/62 font-heading text-base text-ink-faint shadow-subtle backdrop-blur transition hover:border-accent/40 hover:text-accent-selected"
+            >
+              ?
+            </Link>
+            <FieldToggle view="occupying" />
+          </div>
           <FieldMotionToggle mode={fieldMotion} onChange={changeFieldMotion} />
         </div>
       </header>

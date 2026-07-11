@@ -1,20 +1,10 @@
-import {
-  forceSimulation,
-  forceManyBody,
-  forceCollide,
-  forceX,
-  forceY,
-  type SimulationNodeDatum,
-} from "d3-force";
 import type { LoopState } from "./state";
 import { loopVisualStyle } from "./state";
 import { gravityZoneForState, type GravityZone } from "./gravity";
 import type { LabelPosition } from "./layout-types";
 
 export const FIELD_VISIBLE_CAP = 14;
-export const LABEL_CHAR_PX = 7;
-export const COLLIDE_PADDING = 10;
-export const VIEWPORT_MARGIN = 18;
+export const VIEWPORT_MARGIN = 16;
 
 export interface LayoutLoop {
   id: string;
@@ -39,36 +29,7 @@ export interface LayoutOptions {
   leftInset?: number;
 }
 
-interface SimNode extends SimulationNodeDatum {
-  id: string;
-  state: LoopState;
-  weight: number;
-  emotionalIntensity: number;
-  label: string;
-  visualSeed: number;
-  circleRadius: number;
-  collideRadius: number;
-  labelWidth: number;
-  labelHeight: number;
-  labelPosition: LabelPosition;
-  targetX: number;
-  targetY: number;
-}
-
-const ZONE_Y: Record<GravityZone, number> = {
-  ready: 0.17,
-  clarify: 0.5,
-  waiting: 0.83,
-};
-
-function hashSeed(id: string): number {
-  let hash = 0;
-  for (let index = 0; index < id.length; index++) {
-    hash = (hash << 5) - hash + id.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
+const GRAVITY_ORDER: GravityZone[] = ["ready", "clarify", "waiting"];
 
 function loopPriority(state: LoopState, weight: number): number {
   const order: Record<LoopState, number> = {
@@ -81,6 +42,18 @@ function loopPriority(state: LoopState, weight: number): number {
   return order[state] * 10 - weight;
 }
 
+export function fieldRailWidth(width: number): number {
+  if (width < 640) return 84;
+  if (width < 1024) return 128;
+  return 168;
+}
+
+export function fieldLabelMaxWidth(width: number): number {
+  if (width < 640) return 96;
+  if (width < 1024) return 140;
+  return 180;
+}
+
 export function fieldLayoutCircleSize(
   item: Pick<LayoutLoop, "state" | "weight" | "emotionalIntensity">,
   width: number,
@@ -90,8 +63,15 @@ export function fieldLayoutCircleSize(
     visibleCount,
     forField: true,
   });
-  if (width < 480) return Math.max(32, Math.min(58, visual.size * 0.65));
-  return Math.min(112, visual.size);
+  const densityScale = visibleCount > 10 ? 0.86 : 1;
+
+  if (width < 640) {
+    return Math.max(30, Math.min(44, visual.size * 0.55 * densityScale));
+  }
+  if (width < 1024) {
+    return Math.max(34, Math.min(72, visual.size * 0.78 * densityScale));
+  }
+  return Math.max(38, Math.min(96, visual.size * densityScale));
 }
 
 /** Split loops into visible field set + collapsed cluster when above cap. */
@@ -113,76 +93,10 @@ export function partitionFieldLoops<T extends LayoutLoop & { label?: string }>(
   };
 }
 
-function labelBox(node: SimNode, position: LabelPosition) {
-  const labelY =
-    position === "above"
-      ? (node.y ?? 0) - node.circleRadius - 5 - node.labelHeight
-      : (node.y ?? 0) + node.circleRadius + 5;
-  return {
-    left: (node.x ?? 0) - node.labelWidth / 2,
-    right: (node.x ?? 0) + node.labelWidth / 2,
-    top: labelY,
-    bottom: labelY + node.labelHeight,
-  };
-}
-
-function boxesOverlap(
-  a: ReturnType<typeof labelBox>,
-  b: ReturnType<typeof labelBox>,
-  gap = 4
-): boolean {
-  return !(
-    a.right + gap < b.left ||
-    a.left - gap > b.right ||
-    a.bottom + gap < b.top ||
-    a.top - gap > b.bottom
-  );
-}
-
-function nudgeLabels(nodes: SimNode[]): void {
-  for (let pass = 0; pass < 3; pass++) {
-    let moved = false;
-    for (let first = 0; first < nodes.length; first++) {
-      for (let second = first + 1; second < nodes.length; second++) {
-        const a = nodes[first];
-        const b = nodes[second];
-        if (!boxesOverlap(labelBox(a, a.labelPosition), labelBox(b, b.labelPosition))) {
-          continue;
-        }
-        const victim =
-          loopPriority(a.state, a.weight) > loopPriority(b.state, b.weight) ? a : b;
-        const nextPosition = victim.labelPosition === "below" ? "above" : "below";
-        if (nextPosition !== victim.labelPosition) {
-          victim.labelPosition = nextPosition;
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
-  }
-}
-
-function keepNodesInView(
-  nodes: SimNode[],
-  width: number,
-  height: number,
-  leftInset: number
-): void {
-  for (const node of nodes) {
-    const horizontalExtent = Math.max(node.circleRadius, node.labelWidth / 2);
-    const labelOffset = node.circleRadius + 5 + node.labelHeight;
-    const topExtent = node.labelPosition === "above" ? labelOffset : node.circleRadius;
-    const bottomExtent = node.labelPosition === "below" ? labelOffset : node.circleRadius;
-    const minX = leftInset + VIEWPORT_MARGIN + horizontalExtent;
-    const maxX = width - VIEWPORT_MARGIN - horizontalExtent;
-    const minY = VIEWPORT_MARGIN + topExtent;
-    const maxY = height - VIEWPORT_MARGIN - bottomExtent;
-
-    node.x = minX > maxX ? (leftInset + width) / 2 : Math.max(minX, Math.min(maxX, node.x ?? minX));
-    node.y = minY > maxY ? height / 2 : Math.max(minY, Math.min(maxY, node.y ?? minY));
-  }
-}
-
+/**
+ * Stable lane layout. Every loop owns a deterministic slot inside its gravity
+ * band, so resizing cannot preserve stale physics or drag coordinates.
+ */
 export function computeLoopLayout(
   items: LayoutLoop[],
   width: number,
@@ -192,84 +106,60 @@ export function computeLoopLayout(
   if (items.length === 0) return [];
 
   const visibleCount = options?.visibleCount ?? items.length;
-  const leftInset = Math.max(0, options?.leftInset ?? 0);
-  const compact = width < 480;
-  const labelHeight = compact ? 32 : 20;
-  const maxLabelWidth = compact ? 96 : 170;
-  const availableLeft = leftInset + VIEWPORT_MARGIN;
-  const availableRight = width - VIEWPORT_MARGIN;
-  const availableWidth = Math.max(120, availableRight - availableLeft);
+  const leftInset = Math.max(0, options?.leftInset ?? fieldRailWidth(width));
+  const contentLeft = leftInset + VIEWPORT_MARGIN;
+  const contentRight = Math.max(contentLeft + 1, width - VIEWPORT_MARGIN);
+  const contentWidth = contentRight - contentLeft;
+  const laneHeight = height / GRAVITY_ORDER.length;
+  const compact = width < 640;
+  const slotMinWidth = compact ? 112 : width < 1024 ? 160 : 210;
+  const maxColumns = Math.max(1, Math.floor(contentWidth / slotMinWidth));
+  const labelHeight = compact ? 28 : 24;
 
   const grouped = new Map<GravityZone, LayoutLoop[]>();
-  for (const item of items) {
-    const zone = gravityZoneForState(item.state);
-    const group = grouped.get(zone) ?? [];
-    group.push(item);
-    grouped.set(zone, group);
-  }
-  grouped.forEach((group) => group.sort((a, b) => loopPriority(a.state, a.weight) - loopPriority(b.state, b.weight)));
-
-  const nodes: SimNode[] = items.map((item) => {
-    const zone = gravityZoneForState(item.state);
-    const group = grouped.get(zone) ?? [item];
-    const groupIndex = Math.max(0, group.findIndex((candidate) => candidate.id === item.id));
-    const slot = (groupIndex + 1) / (group.length + 1);
-    const seed = item.visualSeed ?? hashSeed(item.id);
-    const circleSize = fieldLayoutCircleSize(item, width, visibleCount);
-    const label = item.label ?? "";
-    const jitterX = ((seed % 13) - 6) * (compact ? 1.2 : 2.2);
-    const jitterY = (((seed >> 3) % 9) - 4) * (compact ? 1.5 : 2.5);
-    const targetX = availableLeft + slot * availableWidth + jitterX;
-    const targetY = height * ZONE_Y[zone] + jitterY;
-    const measuredLabelWidth = Math.max(54, label.length * LABEL_CHAR_PX + 8);
-
-    return {
-      id: item.id,
-      state: item.state,
-      weight: item.weight,
-      emotionalIntensity: item.emotionalIntensity,
-      label,
-      visualSeed: seed,
-      circleRadius: circleSize / 2,
-      collideRadius: circleSize / 2 + labelHeight + COLLIDE_PADDING,
-      labelWidth: Math.min(maxLabelWidth, measuredLabelWidth),
-      labelHeight,
-      labelPosition: groupIndex % 2 === 0 ? "below" : "above",
-      targetX,
-      targetY,
-      x: targetX,
-      y: targetY,
-    };
+  for (const zone of GRAVITY_ORDER) grouped.set(zone, []);
+  for (const item of items) grouped.get(gravityZoneForState(item.state))?.push(item);
+  grouped.forEach((group) => {
+    group.sort(
+      (a, b) =>
+        loopPriority(a.state, a.weight) - loopPriority(b.state, b.weight) ||
+        (a.visualSeed ?? 0) - (b.visualSeed ?? 0) ||
+        a.id.localeCompare(b.id)
+    );
   });
 
-  const simulation = forceSimulation(nodes)
-    .force("charge", forceManyBody<SimNode>().strength(compact ? -45 : -75))
-    .force(
-      "collide",
-      forceCollide<SimNode>()
-        .radius((node) => node.collideRadius)
-        .strength(1)
-        .iterations(5)
-    )
-    .force("x", forceX<SimNode>().x((node) => node.targetX).strength(0.3))
-    .force("y", forceY<SimNode>().y((node) => node.targetY).strength(0.5))
-    .alpha(1)
-    .alphaDecay(0.025)
-    .stop();
+  const positions: LayoutPosition[] = [];
 
-  for (let ticks = 0; simulation.alpha() > 0.005 && ticks < 360; ticks++) {
-    simulation.tick();
-  }
+  GRAVITY_ORDER.forEach((zone, zoneIndex) => {
+    const group = grouped.get(zone) ?? [];
+    if (group.length === 0) return;
 
-  nudgeLabels(nodes);
-  keepNodesInView(nodes, width, height, leftInset);
+    const columns = Math.min(group.length, maxColumns);
+    const rows = Math.ceil(group.length / columns);
+    const cellWidth = contentWidth / columns;
+    const cellHeight = laneHeight / rows;
 
-  return nodes.map((node) => ({
-    id: node.id,
-    x: node.x ?? node.targetX,
-    y: node.y ?? node.targetY,
-    labelPosition: node.labelPosition,
-  }));
+    group.forEach((item, index) => {
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      const itemsInRow = Math.min(columns, group.length - row * columns);
+      const rowWidth = itemsInRow * cellWidth;
+      const rowStart = contentLeft + (contentWidth - rowWidth) / 2;
+      const circleSize = fieldLayoutCircleSize(item, width, visibleCount);
+      const contentHeight = circleSize + 4 + labelHeight;
+      const cellTop = zoneIndex * laneHeight + row * cellHeight;
+      const topPadding = Math.max(4, (cellHeight - contentHeight) / 2);
+
+      positions.push({
+        id: item.id,
+        x: rowStart + (column + 0.5) * cellWidth,
+        y: cellTop + topPadding + circleSize / 2,
+        labelPosition: "below",
+      });
+    });
+  });
+
+  return positions;
 }
 
 export function summariseLoops(loops: { state: LoopState }[]) {

@@ -39,7 +39,43 @@ describe("meaningful gravity", () => {
       390,
       8
     );
-    assert.ok(size <= 58);
-    assert.ok(size >= 32);
+    assert.ok(size <= 44);
+    assert.ok(size >= 30);
+  });
+
+  it("keeps every slot inside its lane across desktop resizes", () => {
+    const loops = [
+      { id: "r1", state: "next_step_known" as const, weight: 5, emotionalIntensity: 3 },
+      { id: "r2", state: "next_step_known" as const, weight: 2, emotionalIntensity: 1 },
+      { id: "c1", state: "open_attention" as const, weight: 4, emotionalIntensity: 4 },
+      { id: "c2", state: "open_attention" as const, weight: 2, emotionalIntensity: 2 },
+      { id: "w1", state: "parked" as const, weight: 3, emotionalIntensity: 2 },
+    ];
+
+    for (const width of [720, 1180, 1600]) {
+      const height = 720;
+      const layout = computeLoopLayout(loops, width, height);
+      const byId = new Map(layout.map((position) => [position.id, position]));
+
+      for (const position of layout) {
+        assert.ok(position.x > 0 && position.x < width);
+      }
+      assert.ok(byId.get("r1")!.y < height / 3);
+      assert.ok(byId.get("r2")!.y < height / 3);
+      assert.ok(byId.get("c1")!.y >= height / 3 && byId.get("c1")!.y < (height * 2) / 3);
+      assert.ok(byId.get("c2")!.y >= height / 3 && byId.get("c2")!.y < (height * 2) / 3);
+      assert.ok(byId.get("w1")!.y >= (height * 2) / 3);
+    }
+  });
+
+  it("returns identical slots for identical dimensions", () => {
+    const loops = [
+      { id: "a", state: "open_attention" as const, weight: 3, emotionalIntensity: 2 },
+      { id: "b", state: "open_attention" as const, weight: 2, emotionalIntensity: 1 },
+    ];
+    assert.deepEqual(
+      computeLoopLayout(loops, 1280, 720),
+      computeLoopLayout(loops, 1280, 720)
+    );
   });
 });

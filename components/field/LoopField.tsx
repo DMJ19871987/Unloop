@@ -48,6 +48,7 @@ export function LoopField({
   const [dropZone, setDropZone] = useState<GravityZone | null>(null);
   const [pendingReadyId, setPendingReadyId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [preferredVisibleId, setPreferredVisibleId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   const didDragRef = useRef(false);
@@ -77,7 +78,7 @@ export function LoopField({
   const leftInset = compact ? 74 : 112;
 
   const { visibleLoops, collapsedLoops, collapsedCount, clusterLabel } = useMemo(() => {
-    const { visible, collapsed } = partitionFieldLoops(
+    const { visible } = partitionFieldLoops(
       loops.map((l) => ({
         id: l.id,
         state: l.state,
@@ -90,22 +91,40 @@ export function LoopField({
     );
 
     const visibleCap = fieldSize.width < 480 ? 8 : 14;
-    const cappedVisible = visible.slice(0, visibleCap);
-    const hidden = [...visible.slice(visibleCap), ...collapsed];
+    let cappedVisible = visible.slice(0, visibleCap);
+    const preferred = preferredVisibleId
+      ? loops.find((loop) => loop.id === preferredVisibleId)
+      : null;
+
+    if (preferred && !cappedVisible.some((item) => item.id === preferred.id)) {
+      const preferredLayout = {
+        id: preferred.id,
+        state: preferred.state,
+        weight: preferred.weight,
+        emotionalIntensity: preferred.emotionalIntensity,
+        label: preferred.label,
+        visualSeed: preferred.visualSeed,
+      };
+      cappedVisible =
+        cappedVisible.length >= visibleCap
+          ? [...cappedVisible.slice(0, -1), preferredLayout]
+          : [...cappedVisible, preferredLayout];
+    }
+
+    const visibleIds = new Set(cappedVisible.map((item) => item.id));
+    const hidden = loops.filter((loop) => !visibleIds.has(loop.id));
 
     const allParked =
       hidden.length > 0 && hidden.every((item) => item.state === "parked");
     const label = allParked ? `${hidden.length} parked` : `${hidden.length} more`;
 
-    const visibleIds = new Set(cappedVisible.map((item) => item.id));
-    const hiddenIds = new Set(hidden.map((item) => item.id));
     return {
       visibleLoops: loops.filter((l) => visibleIds.has(l.id)),
-      collapsedLoops: loops.filter((l) => hiddenIds.has(l.id)),
+      collapsedLoops: hidden,
       collapsedCount: hidden.length,
       clusterLabel: label,
     };
-  }, [fieldSize.width, loops]);
+  }, [fieldSize.width, loops, preferredVisibleId]);
 
   const positions = useMemo(() => {
     const layout = computeLoopLayout(
@@ -172,6 +191,7 @@ export function LoopField({
               : null,
           updatedAt: now.toISOString(),
         };
+        setPreferredVisibleId(loop.id);
         onLoopUpdate(updated);
         setPendingReadyId(null);
         return;
@@ -184,6 +204,7 @@ export function LoopField({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not move this loop.");
+      setPreferredVisibleId(loop.id);
       onLoopUpdate(data.loop);
       setPendingReadyId(null);
     } catch (error) {
@@ -489,6 +510,7 @@ export function LoopField({
         open={!!selected}
         onClose={() => setSelectedId(null)}
         onUpdate={(updated) => {
+          setPreferredVisibleId(updated.id);
           onLoopUpdate(updated);
         }}
         onRemove={(id) => {

@@ -78,19 +78,19 @@ export function NextStepInput({
       <p className="font-ui text-xs text-ink-placeholder tracking-wide">
         What&apos;s the next step?
       </p>
-      <div className="flex items-center gap-3 bg-accent-tint/40 border border-border-soft rounded-2xl px-4 py-3.5">
-        <input
-          type="text"
+      <div className="flex items-start gap-3 bg-accent-tint/40 border border-border-soft rounded-2xl px-4 py-3.5">
+        <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               submit();
             }
           }}
           placeholder="Draft the cover letter…"
-          className="flex-1 bg-transparent font-ui text-[15px] text-ink placeholder:text-ink-placeholder focus:outline-none"
+          rows={3}
+          className="min-h-[84px] flex-1 resize-none bg-transparent font-ui text-[15px] leading-relaxed text-ink placeholder:text-ink-placeholder focus:outline-none"
           autoFocus
           disabled={saving || recording}
         />

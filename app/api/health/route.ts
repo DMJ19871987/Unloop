@@ -32,12 +32,19 @@ export async function GET(request: Request) {
   const stripeOk = isStripeConfigured() && Boolean(process.env.STRIPE_WEBHOOK_SECRET);
   const emailOk = isEmailConfigured();
   const dbOk = Boolean(process.env.DATABASE_URL);
-  const clerkOk = Boolean(process.env.CLERK_SECRET_KEY);
+  const clerkSecret = process.env.CLERK_SECRET_KEY ?? "";
+  const clerkPublishable = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+  const clerkOk = Boolean(clerkSecret && clerkPublishable);
+  const clerkProduction =
+    clerkOk &&
+    !clerkSecret.startsWith("sk_test_") &&
+    !clerkPublishable.startsWith("pk_test_");
   const analyticsOk = Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
 
   const healthy =
     dbOk &&
     clerkOk &&
+    (process.env.NODE_ENV !== "production" || clerkProduction) &&
     stripeOk &&
     !mockAi &&
     (process.env.NODE_ENV !== "production" || emailOk);
@@ -48,6 +55,7 @@ export async function GET(request: Request) {
     config: {
       database: dbOk,
       clerk: clerkOk,
+      clerkProduction,
       stripe: stripeOk,
       email: emailOk,
       analytics: analyticsOk,

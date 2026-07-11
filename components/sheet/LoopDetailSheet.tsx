@@ -46,7 +46,10 @@ export function LoopDetailSheet({
   const [confirmText, setConfirmText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"default" | "edit" | "merge">("default");
+  const [mode, setMode] = useState<
+    "default" | "edit" | "merge" | "merge_confirm" | "delete"
+  >("default");
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [view, setView] = useState<"now" | "history">("now");
   const [editLabel, setEditLabel] = useState("");
   const trapRef = useFocusTrap(open);
@@ -55,6 +58,7 @@ export function LoopDetailSheet({
     if (loop) setEditLabel(loop.label);
     if (!open) {
       setMode("default");
+      setMergeTargetId(null);
       setSelectedAction(null);
       setConfirmText(null);
       setActionError(null);
@@ -68,6 +72,7 @@ export function LoopDetailSheet({
   const mergeTargets = allLoops.filter(
     (l) => l.id !== loopId && l.state !== "done" && l.state !== "released"
   );
+  const mergeTarget = mergeTargets.find((target) => target.id === mergeTargetId) ?? null;
 
   const finishWithConfirm = (text: string, updated: LoopDTO, delayMs = 1200) => {
     setConfirmText(text);
@@ -319,9 +324,22 @@ export function LoopDetailSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-sheet/95 rounded-t-sheet shadow-float px-7 pt-3 pb-10 min-h-[58vh] max-h-[85vh] overflow-y-auto safe-area-bottom border-t border-border/80 backdrop-blur-xl"
+            className="fixed inset-x-0 bottom-0 z-50 flex min-h-[58dvh] max-h-[85dvh] flex-col overflow-hidden rounded-t-sheet border-t border-border/80 bg-sheet/95 pt-3 shadow-float backdrop-blur-xl"
           >
-            <div className="w-[46px] h-[5px] rounded-full bg-border mx-auto mb-5" aria-hidden />
+            <div className="relative shrink-0 px-7 pb-3">
+              <div className="mx-auto h-[5px] w-[46px] rounded-full bg-border" aria-hidden />
+              <button
+                type="button"
+                onClick={onClose}
+                className="absolute right-4 top-0 inline-flex size-11 items-center justify-center rounded-full font-ui text-xl leading-none text-ink-faint transition hover:bg-paper/60 hover:text-ink"
+                aria-label="Close loop details"
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
 
             <div className="flex justify-center mb-2">
               <LoopCircle
@@ -377,7 +395,10 @@ export function LoopDetailSheet({
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => mergeInto(t.id)}
+                    onClick={() => {
+                      setMergeTargetId(t.id);
+                      setMode("merge_confirm");
+                    }}
                     disabled={loading}
                     className="w-full py-3 rounded-full border border-border bg-paper/45 font-ui text-sm text-ink-soft min-h-[48px] transition hover:border-accent hover:-translate-y-0.5 disabled:opacity-40"
                   >
@@ -394,6 +415,83 @@ export function LoopDetailSheet({
                 >
                   Cancel
                 </button>
+              </div>
+            ) : mode === "merge_confirm" && mergeTarget ? (
+              <div className="mx-auto max-w-sm space-y-5 text-center">
+                <div>
+                  <p className="font-ui text-[10px] uppercase tracking-[1.8px] text-ink-placeholder">
+                    Confirm merge
+                  </p>
+                  <h2 className="mt-2 font-heading text-xl text-ink">Bring these loops together?</h2>
+                </div>
+                {actionError && <ActionError message={actionError} />}
+                <div className="border-y border-border-soft py-4">
+                  <p className="font-heading text-base text-ink-soft">{loop.label}</p>
+                  <p className="my-2 font-ui text-xs text-ink-placeholder">into</p>
+                  <p className="font-heading text-base text-ink">{mergeTarget.label}</p>
+                </div>
+                <p className="font-ui text-sm leading-relaxed text-ink-muted">
+                  Mentions and history from this loop will be added to the target. This loop will no longer appear separately.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("merge");
+                      setMergeTargetId(null);
+                      setActionError(null);
+                    }}
+                    disabled={loading}
+                    className="min-h-[48px] rounded-full border border-border bg-paper/45 px-4 font-ui text-sm text-ink-soft disabled:opacity-40"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => mergeInto(mergeTarget.id)}
+                    disabled={loading}
+                    className="min-h-[48px] rounded-full bg-accent px-4 font-ui text-sm text-white shadow-subtle disabled:opacity-40"
+                  >
+                    {loading ? "Merging…" : "Merge loops"}
+                  </button>
+                </div>
+              </div>
+            ) : mode === "delete" ? (
+              <div className="mx-auto max-w-sm space-y-5 text-center">
+                <div>
+                  <p className="font-ui text-[10px] uppercase tracking-[1.8px] text-accent">
+                    Permanent action
+                  </p>
+                  <h2 className="mt-2 font-heading text-xl text-ink">Delete this loop?</h2>
+                </div>
+                {actionError && <ActionError message={actionError} />}
+                <p className="border-y border-border-soft py-4 font-heading text-base text-ink-soft">
+                  {loop.label}
+                </p>
+                <p className="font-ui text-sm leading-relaxed text-ink-muted">
+                  Its history will be permanently removed. Releasing a loop keeps it in History; deleting does not.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("default");
+                      setActionError(null);
+                    }}
+                    disabled={loading}
+                    className="min-h-[48px] rounded-full border border-border bg-paper/45 px-4 font-ui text-sm text-ink-soft disabled:opacity-40"
+                  >
+                    Keep loop
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteLoop}
+                    disabled={loading}
+                    className="min-h-[48px] rounded-full border border-accent/45 bg-accent-tint/55 px-4 font-ui text-sm text-accent disabled:opacity-40"
+                  >
+                    {loading ? "Deleting…" : "Delete permanently"}
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -500,7 +598,10 @@ export function LoopDetailSheet({
                         </button>
                         <button
                           type="button"
-                          onClick={deleteLoop}
+                          onClick={() => {
+                            setMode("delete");
+                            setActionError(null);
+                          }}
                           disabled={loading}
                           className="min-h-[48px] px-2 hover:text-ink-soft disabled:opacity-40"
                         >
@@ -512,6 +613,7 @@ export function LoopDetailSheet({
                 )}
               </>
             )}
+            </div>
           </motion.div>
         </>
       )}

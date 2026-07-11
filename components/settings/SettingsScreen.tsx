@@ -5,7 +5,13 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { track, withdrawConsent, setConsentState, getConsentState } from "@/lib/analytics";
+import {
+  track,
+  withdrawConsent,
+  setConsentState,
+  getConsentState,
+  type ConsentState,
+} from "@/lib/analytics";
 
 const UserProfile = dynamic(
   () => import("@clerk/nextjs").then((m) => m.UserProfile),
@@ -33,8 +39,10 @@ export function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [analyticsConsent, setAnalyticsConsent] = useState<ConsentState>("pending");
 
   useEffect(() => {
+    setAnalyticsConsent(getConsentState());
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
@@ -113,8 +121,21 @@ export function SettingsScreen() {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <p className="font-ui text-sm text-ink-faint">Loading settings…</p>
+      <div className="mx-auto max-w-xl space-y-7 px-6 py-10" aria-label="Loading settings">
+        <div className="animate-pulse space-y-3">
+          <div className="h-2.5 w-24 rounded-full bg-border/70" />
+          <div className="h-8 w-36 rounded-md bg-border/70" />
+        </div>
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="animate-pulse space-y-4 rounded-[24px] border border-border/70 bg-sheet/50 p-5"
+          >
+            <div className="h-2.5 w-28 rounded-full bg-border/70" />
+            <div className="h-4 w-3/4 rounded-full bg-border-soft" />
+            <div className="h-11 w-full rounded-full bg-border-soft/80" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -271,21 +292,31 @@ export function SettingsScreen() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setConsentState("accepted")}
+            onClick={() => {
+              setConsentState("accepted");
+              setAnalyticsConsent("accepted");
+            }}
             className="font-ui text-sm text-accent-selected hover:text-accent-hover min-h-[48px] px-4"
           >
             Accept analytics
           </button>
           <button
             type="button"
-            onClick={() => withdrawConsent()}
+            onClick={() => {
+              withdrawConsent();
+              setAnalyticsConsent("declined");
+            }}
             className="font-ui text-sm text-ink-faint hover:text-ink-soft min-h-[48px] px-4"
           >
             Decline / withdraw
           </button>
         </div>
-        <p className="font-ui text-xs text-ink-faint">
-          Current preference: {getConsentState()}
+        <p className="font-ui text-xs leading-relaxed text-ink-faint">
+          {analyticsConsent === "pending"
+            ? "Not chosen. No analytics are sent unless you accept."
+            : analyticsConsent === "accepted"
+              ? "Analytics enabled. You can withdraw consent at any time."
+              : "Analytics disabled. No usage events are sent."}
         </p>
       </section>
 

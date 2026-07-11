@@ -115,8 +115,17 @@ export async function applyMergeTx(
   if (!source || !target) {
     throw new Error("Loop not found");
   }
+  if (sourceLoopId === targetLoopId) {
+    throw new Error("A loop cannot be merged into itself");
+  }
+  if (isTerminal(source.state) || isTerminal(target.state)) {
+    throw new Error("Closed loops cannot be merged");
+  }
 
   const now = new Date();
+  const sourceEvents = await tx.query.loopEvents.findMany({
+    where: and(eq(loopEvents.loopId, sourceLoopId), eq(loopEvents.userId, userId)),
+  });
 
   const [updated] = await tx
     .update(loops)
@@ -128,12 +137,28 @@ export async function applyMergeTx(
     .where(eq(loops.id, targetLoopId))
     .returning();
 
+  if (sourceEvents.length > 0) {
+    await tx.insert(loopEvents).values(
+      sourceEvents.map((event) => ({
+        loopId: targetLoopId,
+        userId,
+        fromState: event.fromState,
+        toState: event.toState,
+        note: event.note
+          ? `[From ${source.label}] ${event.note}`
+          : `[From ${source.label}]`,
+        createdAt: event.createdAt ?? now,
+      }))
+    );
+  }
+
   await tx.insert(loopEvents).values({
-    loopId: sourceLoopId,
+    loopId: targetLoopId,
     userId,
-    fromState: source.state,
-    toState: source.state,
-    note: `merged into ${targetLoopId}`,
+    fromState: target.state,
+    toState: target.state,
+    note: `Merged "${source.label}" into this loop.`,
+    createdAt: now,
   });
 
   await tx.delete(loops).where(eq(loops.id, sourceLoopId));

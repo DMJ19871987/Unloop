@@ -221,7 +221,7 @@ export function FieldGuide() {
               <div>
                 <h3 className="font-heading text-lg text-ink">Size is mental weight</h3>
                 <p className="mt-2 font-ui text-sm leading-relaxed text-ink-muted">
-                  Larger loops are taking more room in your attention. Size is not importance or priority.
+                  Larger loops are taking more room in your attention. A stronger stroke reflects emotional intensity. Neither is a priority score.
                 </p>
               </div>
             </div>
@@ -257,6 +257,9 @@ export function FieldGuide() {
           <h2 className="mt-2 font-heading text-2xl text-ink">Drag when something changes</h2>
           <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">
             Move a loop to Ready when you know what happens next, Clarify when it still needs thought, or Waiting when it is parked or outside your control.
+          </p>
+          <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">
+            On touch screens, press and hold until the loop pulses, then drag. A normal swipe still scrolls the page.
           </p>
           <p className="mt-3 font-ui text-sm leading-relaxed text-ink-muted">
             If you move something to Ready, Unloop asks you to name the next step before it settles there.

@@ -8,6 +8,7 @@ import { GravityNextStepPrompt } from "./GravityNextStepPrompt";
 import { SummaryBar } from "./SummaryBar";
 import { FieldToggle } from "./FieldToggle";
 import { FieldMotionToggle, type FieldMotionMode } from "./FieldMotionToggle";
+import { LongPressDraggable } from "./LongPressDraggable";
 import { LoopDetailSheet } from "@/components/sheet/LoopDetailSheet";
 import type { LoopDTO } from "@/lib/types/loop";
 import { platform } from "@/lib/platform";
@@ -54,6 +55,7 @@ export function LoopField({
 }: LoopFieldProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCollapsedCluster, setShowCollapsedCluster] = useState(false);
+  const [fieldIndexQuery, setFieldIndexQuery] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropZone, setDropZone] = useState<GravityZone | null>(null);
   const [pendingReadyId, setPendingReadyId] = useState<string | null>(null);
@@ -185,6 +187,17 @@ export function LoopField({
     return counts;
   }, [loops]);
 
+  const filteredCollapsedLoops = useMemo(() => {
+    const query = fieldIndexQuery.trim().toLowerCase();
+    if (!query) return collapsedLoops;
+    return collapsedLoops.filter(
+      (loop) =>
+        loop.label.toLowerCase().includes(query) ||
+        loop.category.toLowerCase().includes(query) ||
+        loop.nextStep?.toLowerCase().includes(query)
+    );
+  }, [collapsedLoops, fieldIndexQuery]);
+
   const isEmpty = loops.length === 0;
 
   const newLoopOrder = useMemo(() => {
@@ -282,7 +295,10 @@ export function LoopField({
           {collapsedCount > 0 && (
             <button
               type="button"
-              onClick={() => setShowCollapsedCluster(true)}
+              onClick={() => {
+                setFieldIndexQuery("");
+                setShowCollapsedCluster(true);
+              }}
               className="mt-2 min-h-[36px] font-ui text-[11px] text-accent-selected transition hover:text-accent"
             >
               {collapsedCount} more in your field
@@ -397,20 +413,6 @@ export function LoopField({
                 <motion.div
                   key={loop.id}
                   className={`absolute z-10 ${movingId === loop.id ? "opacity-60" : ""}`}
-                  drag={!isClosing}
-                  dragMomentum={false}
-                  dragSnapToOrigin
-                  onDragStart={() => {
-                    didDragRef.current = true;
-                    setDraggingId(loop.id);
-                    setDropZone(gravityZoneForState(loop.state));
-                    setMoveError(null);
-                  }}
-                  onDrag={(event, info) =>
-                    setDropZone(zoneAtClientY(dragClientY(event, info)))
-                  }
-                  onDragEnd={(event, info) => finishDrag(loop, event, info)}
-                  whileDrag={{ scale: 1.06, zIndex: 40, cursor: "grabbing" }}
                   initial={
                     isNew
                       ? {
@@ -469,39 +471,53 @@ export function LoopField({
                   }
                 >
                   <div className="-translate-x-1/2 -translate-y-1/2">
-                    <motion.button
-                      type="button"
-                      onClick={() => {
-                        if (!didDragRef.current) setSelectedId(loop.id);
+                    <LongPressDraggable
+                      disabled={isClosing}
+                      onDragStart={() => {
+                        didDragRef.current = true;
+                        setDraggingId(loop.id);
+                        setDropZone(gravityZoneForState(loop.state));
+                        setMoveError(null);
                       }}
-                      className="group cursor-grab touch-none focus:outline-none"
-                      aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
-                      whileHover={{ scale: 1.035 }}
-                      whileTap={{ scale: 0.96 }}
+                      onDrag={(event, info) =>
+                        setDropZone(zoneAtClientY(dragClientY(event, info)))
+                      }
+                      onDragEnd={(event, info) => finishDrag(loop, event, info)}
                     >
-                      <LoopCircle
-                        label={loop.label}
-                        state={loop.state}
-                        weight={loop.weight}
-                        emotionalIntensity={loop.emotionalIntensity}
-                        visualSeed={loop.visualSeed}
-                        size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
-                        animateArc={isClosing ? 1 : undefined}
-                        closingMode={isClosing ? closingAction ?? undefined : undefined}
-                        drift={
-                          fieldMotion === "fixed" &&
-                          reducedMotion !== true &&
-                          !isClosing &&
-                          draggingId !== loop.id
-                        }
-                        labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
-                        labelPosition={pos?.labelPosition ?? "below"}
-                        visibleCount={visibleLoops.length}
-                        labelMaxWidth={labelMaxWidth}
-                        compactLabel={compact}
-                        forField
-                      />
-                    </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => {
+                          if (!didDragRef.current) setSelectedId(loop.id);
+                        }}
+                        className="group cursor-grab focus:outline-none"
+                        aria-label={`${loop.label}, ${loop.state.replace(/_/g, " ")}`}
+                        whileHover={{ scale: 1.035 }}
+                        whileTap={{ scale: 0.96 }}
+                      >
+                        <LoopCircle
+                          label={loop.label}
+                          state={loop.state}
+                          weight={loop.weight}
+                          emotionalIntensity={loop.emotionalIntensity}
+                          visualSeed={loop.visualSeed}
+                          size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
+                          animateArc={isClosing ? 1 : undefined}
+                          closingMode={isClosing ? closingAction ?? undefined : undefined}
+                          drift={
+                            fieldMotion === "fixed" &&
+                            reducedMotion !== true &&
+                            !isClosing &&
+                            draggingId !== loop.id
+                          }
+                          labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
+                          labelPosition={pos?.labelPosition ?? "below"}
+                          visibleCount={visibleLoops.length}
+                          labelMaxWidth={labelMaxWidth}
+                          compactLabel={compact}
+                          forField
+                        />
+                      </motion.button>
+                    </LongPressDraggable>
                   </div>
                 </motion.div>
               );
@@ -518,19 +534,34 @@ export function LoopField({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCollapsedCluster(false)}
+                onClick={() => {
+                  setFieldIndexQuery("");
+                  setShowCollapsedCluster(false);
+                }}
                 className="min-h-[44px] px-2 font-ui text-xs text-ink-faint hover:text-ink"
               >
                 Close
               </button>
             </div>
+            <label htmlFor="field-index-search" className="sr-only">
+              Search additional loops
+            </label>
+            <input
+              id="field-index-search"
+              type="search"
+              value={fieldIndexQuery}
+              onChange={(event) => setFieldIndexQuery(event.target.value)}
+              placeholder="Search this field index"
+              className="mb-2 min-h-[44px] w-full rounded-2xl border border-border bg-paper/65 px-4 font-ui text-sm text-ink outline-none placeholder:text-ink-placeholder focus:border-accent"
+            />
             <div className="divide-y divide-border-soft">
-              {collapsedLoops.map((loop) => (
+              {filteredCollapsedLoops.map((loop) => (
                 <button
                   key={loop.id}
                   type="button"
                   onClick={() => {
                     setSelectedId(loop.id);
+                    setFieldIndexQuery("");
                     setShowCollapsedCluster(false);
                   }}
                   className="grid min-h-[58px] w-full grid-cols-[1fr_auto] items-center gap-3 px-2 text-left transition hover:pl-3"
@@ -541,6 +572,11 @@ export function LoopField({
                   </span>
                 </button>
               ))}
+              {filteredCollapsedLoops.length === 0 && (
+                <p className="py-8 text-center font-ui text-sm text-ink-faint">
+                  No additional loops match that search.
+                </p>
+              )}
             </div>
           </div>
         )}

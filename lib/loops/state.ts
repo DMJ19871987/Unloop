@@ -75,6 +75,8 @@ export function loopVisualStyle(
   options?: { visibleCount?: number; forField?: boolean }
 ): LoopVisualStyle {
   const visibleCount = options?.visibleCount ?? 1;
+  const clampedIntensity = Math.max(1, Math.min(5, emotionalIntensity));
+  const activeStrokeWidth = 2.8 + (clampedIntensity - 1) * 0.7;
   const fieldSize = options?.forField
     ? fieldLoopDiameter(weight, visibleCount)
     : undefined;
@@ -84,14 +86,14 @@ export function loopVisualStyle(
     case "open_attention":
       return {
         stroke: "var(--accent)",
-        strokeWidth: 4 + (emotionalIntensity > 3 ? 0.5 : 0),
+        strokeWidth: activeStrokeWidth,
         opacity: 1,
         size: Math.min(150, baseSize),
       };
     case "next_step_known":
       return {
         stroke: "var(--closed)",
-        strokeWidth: 3,
+        strokeWidth: 2.4 + (clampedIntensity - 1) * 0.38,
         opacity: 0.9,
         size: Math.min(120, baseSize - 10),
       };

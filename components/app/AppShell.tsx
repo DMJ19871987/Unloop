@@ -20,7 +20,7 @@ const hasClerk = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 const NAV_ITEMS = [
   { href: "/field", label: "Field" },
   { href: "/offload", label: "Offload" },
-  { href: "/record", label: "Record" },
+  { href: "/record", label: "History" },
   { href: "/settings", label: "Settings" },
 ] as const;
 

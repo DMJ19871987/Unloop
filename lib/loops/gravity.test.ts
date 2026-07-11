@@ -4,6 +4,7 @@ import {
   gravityZoneForState,
   stateForGravityZone,
 } from "./gravity";
+import { loopVisualStyle } from "./state";
 import {
   computeLoopLayout,
   fieldLayoutCircleSize,
@@ -46,6 +47,13 @@ describe("meaningful gravity", () => {
     );
     assert.ok(size <= 44);
     assert.ok(size >= 30);
+  });
+
+  it("makes emotional intensity visibly strengthen active strokes", () => {
+    const quiet = loopVisualStyle("open_attention", 3, 1, { forField: true });
+    const intense = loopVisualStyle("open_attention", 3, 5, { forField: true });
+    assert.ok(intense.strokeWidth - quiet.strokeWidth >= 2.5);
+    assert.equal(intense.size, quiet.size);
   });
 
   it("keeps every slot inside its lane across desktop resizes", () => {

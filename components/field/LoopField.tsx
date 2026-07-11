@@ -19,7 +19,8 @@ import {
   fieldRailWidth,
   selectVisibleFieldLoops,
 } from "@/lib/loops/layout";
-import { computeFloatingLoopLayout } from "@/lib/loops/float-layout";
+import { computeSettledLoopLayout } from "@/lib/loops/float-layout";
+import { useLiveLoopLayout } from "@/lib/loops/use-live-loop-layout";
 import {
   GRAVITY_ZONES,
   gravityZoneForState,
@@ -124,7 +125,7 @@ export function LoopField({
     };
   }, [fieldSize.width, loops, preferredVisibleId]);
 
-  const fixedPositions = useMemo(
+  const seededPositions = useMemo(
     () =>
       computeLoopLayout(
         visibleLoops.map((l) => ({
@@ -142,19 +143,32 @@ export function LoopField({
     [visibleLoops, fieldSize, leftInset]
   );
 
+  const settledPositions = useMemo(
+    () =>
+      computeSettledLoopLayout(
+        visibleLoops,
+        seededPositions,
+        fieldSize.width,
+        fieldSize.height,
+        { leftInset, visibleCount: visibleLoops.length }
+      ),
+    [fieldSize, leftInset, seededPositions, visibleLoops]
+  );
+
+  const livePositions = useLiveLoopLayout({
+    items: visibleLoops,
+    anchors: settledPositions,
+    width: fieldSize.width,
+    height: fieldSize.height,
+    leftInset,
+    visibleCount: visibleLoops.length,
+    active: fieldMotion === "float" && reducedMotion !== true,
+  });
+
   const positions = useMemo(() => {
-    const layout =
-      fieldMotion === "float"
-        ? computeFloatingLoopLayout(
-            visibleLoops,
-            fixedPositions,
-            fieldSize.width,
-            fieldSize.height,
-            { leftInset, visibleCount: visibleLoops.length }
-          )
-        : fixedPositions;
+    const layout = fieldMotion === "float" ? livePositions : settledPositions;
     return new Map(layout.map((p) => [p.id, p]));
-  }, [fieldMotion, fieldSize, fixedPositions, leftInset, visibleLoops]);
+  }, [fieldMotion, livePositions, settledPositions]);
 
   function changeFieldMotion(mode: FieldMotionMode) {
     setFieldMotion(mode);
@@ -432,10 +446,16 @@ export function LoopField({
                           },
                           opacity: { duration: 0.3, delay: staggerIndex * 0.08 },
                         }
-                      : {
-                          duration: isClosing ? 3 : 0.3,
-                          ease: "easeOut",
-                        }
+                      : isClosing
+                        ? { duration: 3, ease: "easeOut" }
+                        : fieldMotion === "float"
+                          ? {
+                              left: { duration: 0.14, ease: "linear" },
+                              top: { duration: 0.14, ease: "linear" },
+                              opacity: { duration: 0.2 },
+                              scale: { duration: 0.2 },
+                            }
+                          : { duration: 0.3, ease: "easeOut" }
                   }
                 >
                   <div className="-translate-x-1/2 -translate-y-1/2">
@@ -458,12 +478,6 @@ export function LoopField({
                         size={fieldLayoutCircleSize(loop, fieldSize.width, visibleLoops.length)}
                         animateArc={isClosing ? 1 : undefined}
                         closingMode={isClosing ? closingAction ?? undefined : undefined}
-                        drift={
-                          fieldMotion === "float" &&
-                          reducedMotion !== true &&
-                          !isClosing &&
-                          draggingId !== loop.id
-                        }
                         labelOpacity={loop.state === "parked" ? 0.5 : 0.85}
                         labelPosition={pos?.labelPosition ?? "below"}
                         visibleCount={visibleLoops.length}

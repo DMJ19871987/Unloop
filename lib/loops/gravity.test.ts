@@ -9,7 +9,7 @@ import {
   fieldLayoutCircleSize,
   selectVisibleFieldLoops,
 } from "./layout";
-import { computeFloatingLoopLayout } from "./float-layout";
+import { computeSettledLoopLayout } from "./float-layout";
 
 describe("meaningful gravity", () => {
   it("maps active loop states to visible gravity zones", () => {
@@ -119,11 +119,11 @@ describe("meaningful gravity", () => {
     const height = 720;
     const leftInset = 168;
     const fixed = computeLoopLayout(loops, width, height, { leftInset });
-    const floating = computeFloatingLoopLayout(loops, fixed, width, height, {
+    const floating = computeSettledLoopLayout(loops, fixed, width, height, {
       leftInset,
       visibleCount: loops.length,
     });
-    const repeated = computeFloatingLoopLayout(loops, fixed, width, height, {
+    const repeated = computeSettledLoopLayout(loops, fixed, width, height, {
       leftInset,
       visibleCount: loops.length,
     });

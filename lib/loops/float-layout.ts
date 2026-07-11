@@ -43,7 +43,7 @@ function seededRandom(seed: number) {
  * Settles loops with deterministic repulsion while retaining their gravity
  * lane and seeded fixed position as an anchor.
  */
-export function computeFloatingLoopLayout(
+export function computeSettledLoopLayout(
   items: LayoutLoop[],
   fixedPositions: LayoutPosition[],
   width: number,
